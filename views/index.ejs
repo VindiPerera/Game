@@ -24,8 +24,20 @@
             top: 0;
             right: 0;
             display: flex;
-            gap: 10px;
+            flex-direction: column;
+            gap: 5px;
+            align-items: flex-end;
+        }
+
+        .nav-top {
+            display: flex;
             align-items: center;
+            gap: 10px;
+        }
+
+        .nav-bottom {
+            display: flex;
+            gap: 10px;
         }
 
         .welcome-user {
@@ -94,7 +106,8 @@
         .score-item {
             display: flex;
             justify-content: space-between;
-            padding: 10px 0;
+            align-items: center;
+            padding: 15px 0;
             border-bottom: 1px solid #eee;
         }
         .score-item:last-child {
@@ -103,14 +116,44 @@
         .username {
             font-weight: bold;
             color: #2c3e50;
+            flex: 1;
+        }
+        .score-details {
+            display: flex;
+            gap: 15px;
+            flex: 2;
+            justify-content: center;
+            flex-wrap: wrap;
         }
         .score {
             font-weight: bold;
             color: #e74c3c;
         }
-        .game-type {
+        .duration {
+            color: #9b59b6;
+            font-weight: 500;
+        }
+        .coins {
+            color: #f39c12;
+            font-weight: 500;
+        }
+        .obstacles {
+            color: #e67e22;
+            font-weight: 500;
+        }
+        .powerups {
+            color: #27ae60;
+            font-weight: 500;
+        }
+        .distance {
+            color: #3498db;
+            font-weight: 500;
+        }
+        .result {
             color: #7f8c8d;
             font-size: 0.9em;
+            flex: 1;
+            text-align: right;
         }
     </style>
 </head>
@@ -122,32 +165,43 @@
         <!-- Navigation -->
         <nav class="nav">
             <% if (user) { %>
-                <span class="welcome-user">Welcome, <%= user.username %>!</span>
-                <a href="/game" class="nav-button game-btn">🎮 Play Game</a>
-                <form action="/auth/logout" method="POST" style="display: inline;">
-                    <button type="submit" class="nav-button logout-btn">Logout</button>
-                </form>
+                <div class="nav-top">
+                    <span class="welcome-user">Welcome, <%= user.username %>!</span>
+                </div>
+                <div class="nav-bottom">
+                    <a href="/game" class="nav-button game-btn">🎮 Play Game</a>
+                    <form action="/auth/logout" method="POST" style="display: inline;">
+                        <button type="submit" class="nav-button logout-btn">Logout</button>
+                    </form>
+                </div>
             <% } else { %>
-                <a href="/login" class="nav-button login-btn">Login</a>
-                <a href="/register" class="nav-button register-btn">Register</a>
+                <div class="nav-bottom">
+                    <a href="/login" class="nav-button login-btn">Login</a>
+                    <a href="/register" class="nav-button register-btn">Register</a>
+                </div>
             <% } %>
         </nav>
     </div>
 
     <div class="scores-container">
-        <h2>Top Scores</h2>
+        <h2>Top Game Sessions</h2>
         <% if (scores && scores.length > 0) { %>
             <% scores.forEach(score => { %>
                 <div class="score-item">
-                    <div>
-                        <span class="username"><%= score.username %></span>
-                        <span class="game-type">(<%= score.game_type %>)</span>
+                    <div class="username"><%= score.username %></div>
+                    <div class="score-details">
+                        <span class="score">Score: <%= score.score %></span>
+                        <span class="duration">⏱️ <%= Math.floor(score.duration_seconds / 60) %>:<%= (score.duration_seconds % 60).toString().padStart(2, '0') %></span>
+                        <span class="coins">🪙 <%= score.coins_collected %></span>
+                        <span class="obstacles">💥 <%= score.obstacles_hit %></span>
+                        <span class="powerups">⚡ <%= score.powerups_collected %></span>
+                        <span class="distance">📏 <%= Math.floor(score.distance_traveled / 10) %>m</span>
                     </div>
-                    <span class="score"><%= score.score %></span>
+                    <span class="result"><%= score.game_result %></span>
                 </div>
             <% }); %>
         <% } else { %>
-            <p>No scores available yet. Be the first to play!</p>
+            <p>No game sessions available yet. Be the first to play!</p>
         <% } %>
     </div>
 </body>

@@ -257,10 +257,13 @@ app.get("/game", checkAuth, (req, res) => {
   });
 });
 
-// Test route
+// Test route (public leaderboard)
 app.get("/", checkAuth, (req, res) => {
   db.query(
-    "SELECT s.id, s.username, s.score, s.game_type, s.created_at FROM scores s ORDER BY s.score DESC LIMIT 10",
+    `SELECT gs.id, u.username, gs.final_score as score, gs.duration_seconds, gs.coins_collected, gs.obstacles_hit, gs.powerups_collected, gs.distance_traveled, gs.game_result, gs.created_at
+     FROM game_sessions gs
+     JOIN users u ON gs.user_id = u.id
+     ORDER BY gs.final_score DESC LIMIT 10`,
     (err, results) => {
       if (err) {
         console.error("Database error:", err);
@@ -282,7 +285,10 @@ app.get("/", checkAuth, (req, res) => {
 // Get all scores (public)
 app.get("/api/scores", (req, res) => {
   db.query(
-    "SELECT s.id, s.username, s.score, s.game_type, s.created_at FROM scores s ORDER BY s.score DESC LIMIT 50",
+    `SELECT gs.id, u.username, gs.final_score as score, gs.duration_seconds, gs.coins_collected, gs.obstacles_hit, gs.powerups_collected, gs.distance_traveled, gs.game_result, gs.created_at
+     FROM game_sessions gs
+     JOIN users u ON gs.user_id = u.id
+     ORDER BY gs.final_score DESC LIMIT 50`,
     (err, results) => {
       if (err) {
         console.error("Database error:", err);
@@ -316,23 +322,66 @@ app.get("/api/scores/my", authenticateToken, (req, res) => {
 
 // Add a new score (protected)
 app.post("/api/scores", authenticateToken, (req, res) => {
-  const { score, game_type = "default" } = req.body;
+  console.log("Score saving request received:", req.body);
+  console.log("User:", req.user);
+  
+  const { score, level = 1, distance = 0, game_type = "default" } = req.body;
   
   if (!score || score < 0) {
+    console.log("Invalid score:", score);
     return res.status(400).json({ message: "Valid score is required" });
   }
 
   db.query(
-    "INSERT INTO scores (user_id, username, score, game_type) VALUES (?, ?, ?, ?)",
-    [req.user.id, req.user.username, score, game_type],
+    "INSERT INTO scores (user_id, username, score, level, distance, game_type) VALUES (?, ?, ?, ?, ?, ?)",
+    [req.user.id, req.user.username, score, level, distance, game_type],
     (err, result) => {
       if (err) {
-        console.error("Database error:", err);
+        console.error("Database error saving score:", err);
         return res.status(500).json({ message: "Failed to save score" });
       }
+      console.log("Score saved successfully:", result.insertId);
       res.json({ 
         message: "Score saved successfully!",
         scoreId: result.insertId
+      });
+    }
+  );
+});
+
+// Add a new session (protected)
+app.post("/api/sessions", authenticateToken, (req, res) => {
+  console.log("Session saving request received:", req.body);
+  console.log("User:", req.user);
+  
+  const { 
+    sessionId, 
+    durationSeconds, 
+    finalScore, 
+    coinsCollected, 
+    obstaclesHit, 
+    powerupsCollected, 
+    distanceTraveled, 
+    gameResult 
+  } = req.body;
+  
+  if (!sessionId || !durationSeconds || finalScore === undefined) {
+    console.log("Invalid session data:", req.body);
+    return res.status(400).json({ message: "Valid session data is required" });
+  }
+
+  db.query(
+    "INSERT INTO game_sessions (user_id, session_id, duration_seconds, final_score, coins_collected, obstacles_hit, powerups_collected, distance_traveled, game_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [req.user.id, sessionId, durationSeconds, finalScore, coinsCollected, obstaclesHit, powerupsCollected, distanceTraveled, gameResult],
+    (err, result) => {
+      if (err) {
+        console.error("Database error saving session:", err);
+        return res.status(500).json({ message: "Failed to save session" });
+      }
+      console.log("Session saved successfully:", result.insertId);
+      res.json({ 
+        message: "Session saved successfully!",
+        sessionId: result.insertId
       });
     }
   );

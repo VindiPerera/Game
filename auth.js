@@ -10,11 +10,16 @@ export const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1]; // Bearer TOKEN
 
-  if (!token) {
+  // Also check for token in cookies (for web clients)
+  const cookieToken = req.cookies?.token;
+
+  const finalToken = token || cookieToken;
+
+  if (!finalToken) {
     return res.status(401).json({ message: "Access token required" });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  jwt.verify(finalToken, process.env.JWT_SECRET, (err, user) => {
     if (err) {
       return res.status(403).json({ message: "Invalid or expired token" });
     }

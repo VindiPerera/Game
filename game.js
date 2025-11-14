@@ -29,6 +29,17 @@ class EndlessRunner {
     this.catchingAnimation = 0; // Animation timer for monster catching player
     this.catchingPhase = 0; // Phase of catching animation
 
+    // Session tracking
+    this.sessionId = null;
+    this.sessionStartTime = null;
+    this.sessionStats = {
+      coinsCollected: 0,
+      obstaclesHit: 0,
+      powerupsCollected: 0,
+      distanceTraveled: 0,
+      gameResult: null
+    };
+
     this.ground = this.canvas.height - 100;
 
     // Player properties
@@ -288,8 +299,10 @@ class EndlessRunner {
   startGame() {
     this.gameState = "playing";
     document.getElementById("startScreen").classList.add("hidden");
+    document.getElementById("backLink").style.display = "none";
     this.spawnMonster(); // Spawn the single monster
     this.startBackgroundMusic(); // Start background music
+    this.startSession(); // Start tracking session
   }
 
   restartGame() {
@@ -347,6 +360,7 @@ class EndlessRunner {
     this.scoreMultiplier = false;
     this.scoreMultiplierTimer = 0;
     document.getElementById("gameOverScreen").classList.add("hidden");
+    document.getElementById("backLink").style.display = "none";
     // Update UI to show reset coin count
     document.getElementById("score").textContent = "0";
     document.getElementById("distance").textContent = "0";
@@ -354,6 +368,7 @@ class EndlessRunner {
     this.generateBackgroundTrees();
     this.spawnMonster(); // Spawn the single monster
     this.startBackgroundMusic(); // Restart background music
+    this.startSession(); // Start new session
   }
 
   jump() {
@@ -1617,8 +1632,9 @@ class EndlessRunner {
       let coin = this.coins[i];
       if (!coin.collected && this.isColliding(this.player, coin)) {
         coin.collected = true;
-        const coinValue = this.scoreMultiplier ? 2 : 1; // 1 point per coin, 2 with multiplier
-        this.score += coinValue; // 1 point per coin
+        const coinValue = 1; // 1 point per coin (score equals coins collected)
+        this.score += coinValue; // Score equals number of coins collected
+        this.sessionStats.coinsCollected++; // Track coins collected in session
         this.updateScore(); // Update display and check for difficulty increase
         this.createCoinParticles(
           coin.x + coin.width / 2,
@@ -1634,6 +1650,7 @@ class EndlessRunner {
       let powerUp = this.powerUps[i];
       if (!powerUp.collected && this.isColliding(this.player, powerUp)) {
         powerUp.collected = true;
+        this.sessionStats.powerupsCollected++; // Track power-ups collected in session
         this.activatePowerUp(powerUp.type);
         this.createPowerUpParticles(
           powerUp.x + powerUp.width / 2,
@@ -1763,6 +1780,7 @@ class EndlessRunner {
     let currentTime = Date.now();
     this.hitTimestamps.push(currentTime);
     this.lastHitTime = currentTime; // Track the time of the last hit
+    this.sessionStats.obstaclesHit++; // Track obstacle hits in session
 
     // Remove old timestamps (older than 10 seconds)
     this.hitTimestamps = this.hitTimestamps.filter(
@@ -1875,7 +1893,14 @@ class EndlessRunner {
     // Play game over sound
     this.playGameOverSound();
 
+    document.getElementById("backLink").style.display = "block";
     this.showGameOverScreen();
+
+    // Save score to server
+    this.saveScore();
+
+    // End session with result
+    this.endSession('died');
   }
 
   showGameOverScreen() {
@@ -1883,6 +1908,99 @@ class EndlessRunner {
     document.getElementById("finalDistance").textContent = this.distance;
     document.getElementById("finalHighScore").textContent = this.highScore;
     document.getElementById("gameOverScreen").classList.remove("hidden");
+  }
+
+  
+
+  saveScore() {
+    // Calculate level based on score (every 75 points increases difficulty)
+    const level = Math.floor(this.score / 75) + 1;
+
+    // Send score data to server
+    fetch('/api/scores', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'same-origin', // Include cookies for authentication
+      body: JSON.stringify({
+        score: this.score,
+        level: level,
+        distance: Math.floor(this.distance)
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.message === "Score saved successfully!") {
+        console.log("Score saved successfully!");
+      } else {
+        console.error("Failed to save score:", data.message);
+      }
+    })
+    .catch(error => {
+      console.error("Error saving score:", error);
+    });
+  }
+
+  // Session tracking methods
+  startSession() {
+    this.sessionId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    this.sessionStartTime = Date.now();
+    this.sessionStats = {
+      coinsCollected: 0,
+      obstaclesHit: 0,
+      powerupsCollected: 0,
+      distanceTraveled: 0,
+      gameResult: null
+    };
+    console.log("Game session started:", this.sessionId);
+  }
+
+  updateSessionStats() {
+    if (this.sessionId) {
+      this.sessionStats.distanceTraveled = Math.floor(this.distance);
+    }
+  }
+
+  endSession(result) {
+    if (!this.sessionId) return;
+
+    this.sessionStats.gameResult = result;
+    const duration = Math.floor((Date.now() - this.sessionStartTime) / 1000);
+
+    // Send session data to server
+    fetch('/api/sessions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify({
+        sessionId: this.sessionId,
+        durationSeconds: duration,
+        finalScore: this.score,
+        coinsCollected: this.sessionStats.coinsCollected,
+        obstaclesHit: this.sessionStats.obstaclesHit,
+        powerupsCollected: this.sessionStats.powerupsCollected,
+        distanceTraveled: this.sessionStats.distanceTraveled,
+        gameResult: this.sessionStats.gameResult
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.message === "Session saved successfully!") {
+        console.log("Session saved successfully!");
+      } else {
+        console.error("Failed to save session:", data.message);
+      }
+    })
+    .catch(error => {
+      console.error("Error saving session:", error);
+    });
+
+    console.log("Game session ended:", this.sessionId, "Result:", result);
+    this.sessionId = null;
+    this.sessionStartTime = null;
   }
 
   updateScore() {

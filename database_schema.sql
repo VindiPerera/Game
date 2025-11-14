@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS scores (
     user_id INT NOT NULL,
     username VARCHAR(50) NOT NULL,
     score INT NOT NULL,
+    level INT DEFAULT 1,
+    distance INT DEFAULT 0,
     game_type VARCHAR(50) DEFAULT 'default',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -35,6 +37,14 @@ CREATE TABLE IF NOT EXISTS game_sessions (
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ended_at TIMESTAMP NULL,
     is_active BOOLEAN DEFAULT TRUE,
+    duration_seconds INT DEFAULT 0,
+    final_score INT DEFAULT 0,
+    coins_collected INT DEFAULT 0,
+    obstacles_hit INT DEFAULT 0,
+    powerups_collected INT DEFAULT 0,
+    distance_traveled INT DEFAULT 0,
+    game_result ENUM('completed', 'died', 'quit', 'timeout') DEFAULT NULL,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    INDEX idx_user_session (user_id, is_active)
+    INDEX idx_user_session (user_id, is_active),
+    INDEX idx_started_at (started_at)
 );
