@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        .header {
+            text-align: center;
+            color: #333;
+            margin-bottom: 40px;
+        }
+        .wiki-container {
+            background: white;
+            border-radius: 8px;
+            padding: 40px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .section {
+            margin-bottom: 40px;
+        }
+        .section h2 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .section h3 {
+            color: #34495e;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            padding: 10px 20px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        .back-link:hover {
+            background: #2980b9;
+        }
+        .highlight {
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-left: 4px solid #3498db;
+            margin: 15px 0;
+        }
+        .warning {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-left: 4px solid #dc3545;
+            margin: 15px 0;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="back-link">← Back to Menu</a>
+
+    <div class="header">
+        <h1><%= title %></h1>
+        <p>Everything you need to know about our Endless Runner Game</p>
+    </div>
+
+    <div class="wiki-container">
+        <div class="section" id="game-info">
+            <h2>🎮 Game Information</h2>
+
+            <h3>What is Endless Runner?</h3>
+            <p>Endless Runner is an exciting side-scrolling action game where you control a character running through an endless landscape. Your goal is to survive as long as possible by avoiding obstacles, collecting coins, and using power-ups while being chased by a relentless monster.</p>
+
+            <h3>Game Objectives</h3>
+            <ul>
+                <li><strong>Survive:</strong> Avoid obstacles and gaps to stay alive</li>
+                <li><strong>Collect Coins:</strong> Gather as many coins as possible to increase your score</li>
+                <li><strong>Use Power-ups:</strong> Collect special items to gain temporary advantages</li>
+                <li><strong>Set Records:</strong> Achieve high scores and climb the leaderboard</li>
+            </ul>
+
+            <h3>Controls</h3>
+            <div class="highlight">
+                <strong>Space Bar:</strong> Jump (double jump available)<br>
+                <strong>S Key or Down Arrow:</strong> Slide/Crouch<br>
+                <strong>Canvas Click:</strong> Jump (mobile/touch devices)
+            </div>
+
+            <h3>Obstacles & Challenges</h3>
+            <ul>
+                <li><strong>Ground Obstacles:</strong> Rocks and barriers that must be jumped over</li>
+                <li><strong>Flying Birds:</strong> Aerial enemies that require sliding under or jumping over</li>
+                <li><strong>Gaps:</strong> Deadly pits that must be jumped across</li>
+                <li><strong>Fire Traps:</strong> Flaming obstacles that activate periodically</li>
+                <li><strong>Pendulums:</strong> Swinging axe traps with complex movement patterns</li>
+                <li><strong>Ropes:</strong> Wide gaps with ropes that can be crossed by holding the space bar</li>
+            </ul>
+
+            <h3>Power-ups</h3>
+            <ul>
+                <li><strong>🛡️ Shield:</strong> Temporary invulnerability (7 seconds)</li>
+                <li><strong>🧲 Magnet:</strong> Attracts nearby coins automatically (7 seconds)</li>
+                <li><strong>🚀 Speed Boost:</strong> Increased speed with auto-dodge (7 seconds)</li>
+                <li><strong>💰 Double Coins:</strong> Score multiplier for collected coins (7 seconds)</li>
+            </ul>
+
+            <h3>The Monster</h3>
+            <p>A relentless pursuer that gets closer with each obstacle you hit. After 3 obstacle hits within 10 seconds, the monster becomes deadly and can catch you. Strategic platforming and power-up usage can help you survive longer.</p>
+
+            <h3>Scoring System</h3>
+            <ul>
+                <li><strong>Coins:</strong> 1 point each</li>
+                <li><strong>Distance:</strong> Tracked in pixels traveled</li>
+                <li><strong>Survival Time:</strong> Duration of successful runs</li>
+                <li><strong>Difficulty Level:</strong> Increases every 75 points</li>
+            </ul>
+        </div>
+
+        <div class="section" id="payout-info">
+            <h2>💰 Payout Information</h2>
+
+            <div class="warning">
+                <strong>Important:</strong> This game is currently offered as a free entertainment experience. There are no real-money payouts or rewards at this time.
+            </div>
+
+            <h3>Current Reward System</h3>
+            <p>While we don't offer monetary compensation, players can enjoy:</p>
+            <ul>
+                <li><strong>Leaderboard Recognition:</strong> Compete for top positions on global and personal leaderboards</li>
+                <li><strong>Achievement Unlocks:</strong> Future planned achievements for reaching milestones</li>
+                <li><strong>Community Status:</strong> Social recognition among players</li>
+                <li><strong>Personal Records:</strong> Track your best scores and improvement over time</li>
+            </ul>
+
+            <h3>Future Payout Plans</h3>
+            <p>We are exploring potential future monetization options including:</p>
+            <ul>
+                <li>Premium tournaments with prize pools</li>
+                <li>Cosmetic rewards for dedicated players</li>
+                <li>Seasonal events with special rewards</li>
+                <li>Community-driven reward systems</li>
+            </ul>
+
+            <p><em>Note: Any future payout systems will be clearly communicated to all players and will comply with applicable gaming regulations.</em></p>
+        </div>
+
+        <div class="section" id="terms-conditions">
+            <h2>📋 Terms & Conditions</h2>
+
+            <h3>1. Acceptance of Terms</h3>
+            <p>By accessing and playing Endless Runner, you accept and agree to be bound by the terms and provision of this agreement.</p>
+
+            <h3>2. Use License</h3>
+            <p>Permission is granted to temporarily access the materials (game) on Endless Runner's website for personal, non-commercial transitory viewing only.</p>
+
+            <h3>3. User Accounts</h3>
+            <ul>
+                <li>You are responsible for maintaining the confidentiality of your account</li>
+                <li>You agree to accept responsibility for all activities that occur under your account</li>
+                <li>You must be at least 13 years old to create an account</li>
+                <li>Guest accounts are available but have limited features</li>
+            </ul>
+
+            <h3>4. Game Rules & Fair Play</h3>
+            <ul>
+                <li>Cheating, hacking, or exploiting game mechanics is strictly prohibited</li>
+                <li>Multiple accounts for leaderboard manipulation is not allowed</li>
+                <li>All scores must be achieved through legitimate gameplay</li>
+                <li>Violations may result in account suspension or banning</li>
+            </ul>
+
+            <h3>5. Content & Intellectual Property</h3>
+            <p>The game and its original content, features, and functionality are owned by Endless Runner and are protected by copyright, trademark, and other intellectual property laws.</p>
+
+            <h3>6. Privacy & Data Collection</h3>
+            <ul>
+                <li>We collect gameplay statistics, scores, and user account information</li>
+                <li>Data is used to provide services, maintain leaderboards, and improve the game</li>
+                <li>We do not sell personal information to third parties</li>
+                <li>Users can request data deletion by contacting support</li>
+            </ul>
+
+            <h3>7. Limitation of Liability</h3>
+            <p>In no event shall Endless Runner or its suppliers be liable for any damages (including, without limitation, damages for loss of data or profit, or due to business interruption) arising out of the use or inability to use the game.</p>
+
+            <h3>8. Termination</h3>
+            <p>We may terminate or suspend your account and access to the game immediately, without prior notice, for any reason, including breach of these terms.</p>
+
+            <h3>9. Governing Law</h3>
+            <p>These terms shall be interpreted and governed by the laws of the jurisdiction in which the service is provided.</p>
+
+            <h3>10. Changes to Terms</h3>
+            <p>We reserve the right to modify these terms at any time. Continued use of the game after changes constitutes acceptance of new terms.</p>
+
+            <h3>Contact Information</h3>
+            <p>For questions about these terms, please contact us through the game support channels.</p>
+        </div>
+    </div>
+</body>
+</html>

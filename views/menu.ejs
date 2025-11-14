@@ -111,12 +111,14 @@
             <% if (user) { %>
                 <a href="/game" class="menu-button play-btn">🎮 Play Game</a>
                 <a href="/leaderboard" class="menu-button leaderboard-btn">🏆 View Leaderboard</a>
+                <a href="/wiki" class="menu-button login-btn">📖 Game Wiki</a>
                 <form action="/auth/logout" method="POST" style="display: inline;">
                     <button type="submit" class="menu-button logout-btn">Logout</button>
                 </form>
             <% } else { %>
                 <a href="/game?guest=true" class="menu-button guest-btn">🎮 Play as Guest</a>
                 <a href="/leaderboard" class="menu-button leaderboard-btn">🏆 View Leaderboard</a>
+                <a href="/wiki" class="menu-button login-btn">📖 Game Wiki</a>
                 <a href="/login" class="menu-button login-btn">Login</a>
                 <a href="/register" class="menu-button register-btn">Register</a>
             <% } %>

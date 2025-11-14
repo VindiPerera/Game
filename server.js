@@ -306,6 +306,14 @@ app.get("/leaderboard", checkAuth, (req, res) => {
   );
 });
 
+// Wiki route
+app.get("/wiki", checkAuth, (req, res) => {
+  res.render('wiki', {
+    title: 'Game Wiki - Info, Payouts & Terms',
+    user: req.user
+  });
+});
+
 // Get all scores (public)
 app.get("/api/scores", (req, res) => {
   db.query(
