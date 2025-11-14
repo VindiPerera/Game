@@ -246,35 +246,59 @@ app.post("/auth/logout", (req, res) => {
   res.redirect('/');
 });
 
-// Game route (protected)
+// Game route (allows guest access)
 app.get("/game", checkAuth, (req, res) => {
-  if (!req.user) {
+  // Allow guest access if guest=true parameter is present
+  const isGuest = req.query.guest === 'true';
+
+  if (!req.user && !isGuest) {
     return res.redirect('/login');
   }
+
+  // For guest users, create a guest user object
+  const user = req.user || { id: 0, username: 'Guest', email: 'guest@example.com', isGuest: true };
+
   res.render('game', {
+    title: 'Endless Runner Game',
+    user: user
+  });
+});
+
+// Test route (main menu)
+app.get("/", checkAuth, (req, res) => {
+  res.render('menu', {
     title: 'Endless Runner Game',
     user: req.user
   });
 });
 
-// Test route (public leaderboard)
-app.get("/", checkAuth, (req, res) => {
+// Leaderboard route
+app.get("/leaderboard", checkAuth, (req, res) => {
   db.query(
-    `SELECT gs.id, u.username, gs.final_score as score, gs.duration_seconds, gs.coins_collected, gs.obstacles_hit, gs.powerups_collected, gs.distance_traveled, gs.game_result, gs.created_at
+    `SELECT gs.id,
+            CASE WHEN u.username IS NOT NULL THEN u.username ELSE 'Guest' END as username,
+            gs.final_score as score,
+            gs.duration_seconds,
+            gs.coins_collected,
+            gs.obstacles_hit,
+            gs.powerups_collected,
+            gs.distance_traveled,
+            gs.game_result,
+            gs.created_at
      FROM game_sessions gs
-     JOIN users u ON gs.user_id = u.id
+     LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id != 0
      ORDER BY gs.final_score DESC LIMIT 10`,
     (err, results) => {
       if (err) {
         console.error("Database error:", err);
-        return res.render('index', {
-          title: '2D Game Leaderboard',
+        return res.render('leaderboard', {
+          title: 'Game Leaderboard',
           scores: [],
           user: req.user
         });
       }
-      res.render('index', {
-        title: '2D Game Leaderboard',
+      res.render('leaderboard', {
+        title: 'Game Leaderboard',
         scores: results,
         user: req.user
       });
@@ -285,9 +309,18 @@ app.get("/", checkAuth, (req, res) => {
 // Get all scores (public)
 app.get("/api/scores", (req, res) => {
   db.query(
-    `SELECT gs.id, u.username, gs.final_score as score, gs.duration_seconds, gs.coins_collected, gs.obstacles_hit, gs.powerups_collected, gs.distance_traveled, gs.game_result, gs.created_at
+    `SELECT gs.id,
+            CASE WHEN u.username IS NOT NULL THEN u.username ELSE 'Guest' END as username,
+            gs.final_score as score,
+            gs.duration_seconds,
+            gs.coins_collected,
+            gs.obstacles_hit,
+            gs.powerups_collected,
+            gs.distance_traveled,
+            gs.game_result,
+            gs.created_at
      FROM game_sessions gs
-     JOIN users u ON gs.user_id = u.id
+     LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id != 0
      ORDER BY gs.final_score DESC LIMIT 50`,
     (err, results) => {
       if (err) {
@@ -349,22 +382,38 @@ app.post("/api/scores", authenticateToken, (req, res) => {
   );
 });
 
-// Add a new session (protected)
-app.post("/api/sessions", authenticateToken, (req, res) => {
+// Add a new session (allows guest sessions)
+app.post("/api/sessions", (req, res) => {
+  // Check if user is authenticated or if it's a guest session
+  const token = req.cookies.token;
+  let user = null;
+
+  if (token) {
+    try {
+      user = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      // Token invalid, treat as guest
+    }
+  }
+
+  // For guest users, use user_id = 0
+  const userId = user ? user.id : 0;
+  const username = user ? user.username : 'Guest';
+
   console.log("Session saving request received:", req.body);
-  console.log("User:", req.user);
-  
-  const { 
-    sessionId, 
-    durationSeconds, 
-    finalScore, 
-    coinsCollected, 
-    obstaclesHit, 
-    powerupsCollected, 
-    distanceTraveled, 
-    gameResult 
+  console.log("User:", user || 'Guest');
+
+  const {
+    sessionId,
+    durationSeconds,
+    finalScore,
+    coinsCollected,
+    obstaclesHit,
+    powerupsCollected,
+    distanceTraveled,
+    gameResult
   } = req.body;
-  
+
   if (!sessionId || !durationSeconds || finalScore === undefined) {
     console.log("Invalid session data:", req.body);
     return res.status(400).json({ message: "Valid session data is required" });
@@ -372,14 +421,14 @@ app.post("/api/sessions", authenticateToken, (req, res) => {
 
   db.query(
     "INSERT INTO game_sessions (user_id, session_id, duration_seconds, final_score, coins_collected, obstacles_hit, powerups_collected, distance_traveled, game_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [req.user.id, sessionId, durationSeconds, finalScore, coinsCollected, obstaclesHit, powerupsCollected, distanceTraveled, gameResult],
+    [userId, sessionId, durationSeconds, finalScore, coinsCollected, obstaclesHit, powerupsCollected, distanceTraveled, gameResult],
     (err, result) => {
       if (err) {
         console.error("Database error saving session:", err);
         return res.status(500).json({ message: "Failed to save session" });
       }
       console.log("Session saved successfully:", result.insertId);
-      res.json({ 
+      res.json({
         message: "Session saved successfully!",
         sessionId: result.insertId
       });

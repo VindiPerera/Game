@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS scores (
 -- Game sessions table (optional - for tracking active gaming sessions)
 CREATE TABLE IF NOT EXISTS game_sessions (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    session_token VARCHAR(255) NOT NULL,
+    user_id INT NULL,
+    session_id VARCHAR(255) NOT NULL,
     game_type VARCHAR(50) DEFAULT 'default',
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ended_at TIMESTAMP NULL,

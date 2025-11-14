@@ -58,22 +58,22 @@
             display: inline-block;
         }
 
-        .login-btn {
+        .menu-btn {
             background: #3498db;
             color: white;
         }
 
-        .login-btn:hover {
+        .menu-btn:hover {
             background: #2980b9;
             transform: translateY(-1px);
         }
 
-        .register-btn {
+        .game-btn {
             background: #27ae60;
             color: white;
         }
 
-        .register-btn:hover {
+        .game-btn:hover {
             background: #229954;
             transform: translateY(-1px);
         }
@@ -88,13 +88,13 @@
             transform: translateY(-1px);
         }
 
-        .game-btn {
-            background: #10b981;
+        .guest-btn {
+            background: #f59e0b;
             color: white;
         }
 
-        .game-btn:hover {
-            background: #059669;
+        .guest-btn:hover {
+            background: #d97706;
             transform: translateY(-1px);
         }
         .scores-container {
@@ -160,7 +160,7 @@
 <body>
     <div class="header">
         <h1><%= title %></h1>
-        <p>Welcome to the 2D Game Leaderboard!</p>
+        <p>Top Game Sessions</p>
 
         <!-- Navigation -->
         <nav class="nav">
@@ -169,6 +169,7 @@
                     <span class="welcome-user">Welcome, <%= user.username %>!</span>
                 </div>
                 <div class="nav-bottom">
+                    <a href="/" class="nav-button menu-btn">🏠 Main Menu</a>
                     <a href="/game" class="nav-button game-btn">🎮 Play Game</a>
                     <form action="/auth/logout" method="POST" style="display: inline;">
                         <button type="submit" class="nav-button logout-btn">Logout</button>
@@ -176,15 +177,14 @@
                 </div>
             <% } else { %>
                 <div class="nav-bottom">
-                    <a href="/login" class="nav-button login-btn">Login</a>
-                    <a href="/register" class="nav-button register-btn">Register</a>
+                    <a href="/" class="nav-button menu-btn">🏠 Main Menu</a>
+                    <a href="/game?guest=true" class="nav-button guest-btn">🎮 Play as Guest</a>
                 </div>
             <% } %>
         </nav>
     </div>
 
     <div class="scores-container">
-        <h2>Top Game Sessions</h2>
         <% if (scores && scores.length > 0) { %>
             <% scores.forEach(score => { %>
                 <div class="score-item">

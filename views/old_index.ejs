@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .nav {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            align-items: flex-end;
+        }
+
+        .nav-top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-bottom {
+            display: flex;
+            gap: 10px;
+        }
+
+        .welcome-user {
+            color: #2c3e50;
+            font-weight: 500;
+            margin-right: 15px;
+        }
+
+        .nav-button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        .login-btn {
+            background: #3498db;
+            color: white;
+        }
+
+        .login-btn:hover {
+            background: #2980b9;
+            transform: translateY(-1px);
+        }
+
+        .register-btn {
+            background: #27ae60;
+            color: white;
+        }
+
+        .register-btn:hover {
+            background: #229954;
+            transform: translateY(-1px);
+        }
+
+        .logout-btn {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .logout-btn:hover {
+            background: #c0392b;
+            transform: translateY(-1px);
+        }
+
+        .guest-btn {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .guest-btn:hover {
+            background: #d97706;
+            transform: translateY(-1px);
+        }
+        .scores-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .score-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .score-item:last-child {
+            border-bottom: none;
+        }
+        .username {
+            font-weight: bold;
+            color: #2c3e50;
+            flex: 1;
+        }
+        .score-details {
+            display: flex;
+            gap: 15px;
+            flex: 2;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .score {
+            font-weight: bold;
+            color: #e74c3c;
+        }
+        .duration {
+            color: #9b59b6;
+            font-weight: 500;
+        }
+        .coins {
+            color: #f39c12;
+            font-weight: 500;
+        }
+        .obstacles {
+            color: #e67e22;
+            font-weight: 500;
+        }
+        .powerups {
+            color: #27ae60;
+            font-weight: 500;
+        }
+        .distance {
+            color: #3498db;
+            font-weight: 500;
+        }
+        .result {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            flex: 1;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><%= title %></h1>
+        <p>Welcome to Leaderboard!</p>
+
+        <!-- Navigation -->
+        <nav class="nav">
+            <% if (user) { %>
+                <div class="nav-top">
+                    <span class="welcome-user">Welcome, <%= user.username %>!</span>
+                </div>
+                <div class="nav-bottom">
+                    <a href="/game" class="nav-button game-btn">🎮 Play Game</a>
+                    <form action="/auth/logout" method="POST" style="display: inline;">
+                        <button type="submit" class="nav-button logout-btn">Logout</button>
+                    </form>
+                </div>
+            <% } else { %>
+                <div class="nav-bottom">
+                    <a href="/game?guest=true" class="nav-button guest-btn">🎮 Play as Guest</a>
+                    <a href="/login" class="nav-button login-btn">Login</a>
+                    <a href="/register" class="nav-button register-btn">Register</a>
+                </div>
+            <% } %>
+        </nav>
+    </div>
+
+    <div class="scores-container">
+        <h2>Top Game Sessions</h2>
+        <% if (scores && scores.length > 0) { %>
+            <% scores.forEach(score => { %>
+                <div class="score-item">
+                    <div class="username"><%= score.username %></div>
+                    <div class="score-details">
+                        <span class="score">Score: <%= score.score %></span>
+                        <span class="duration">⏱️ <%= Math.floor(score.duration_seconds / 60) %>:<%= (score.duration_seconds % 60).toString().padStart(2, '0') %></span>
+                        <span class="coins">🪙 <%= score.coins_collected %></span>
+                        <span class="obstacles">💥 <%= score.obstacles_hit %></span>
+                        <span class="powerups">⚡ <%= score.powerups_collected %></span>
+                        <span class="distance">📏 <%= Math.floor(score.distance_traveled / 10) %>m</span>
+                    </div>
+                    <span class="result"><%= score.game_result %></span>
+                </div>
+            <% }); %>
+        <% } else { %>
+            <p>No game sessions available yet. Be the first to play!</p>
+        <% } %>
+    </div>
+</body>
+</html>

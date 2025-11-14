@@ -1959,7 +1959,6 @@ class EndlessRunner {
   updateSessionStats() {
     if (this.sessionId) {
       this.sessionStats.distanceTraveled = Math.floor(this.distance);
-      console.log("Session stats updated - Distance:", this.sessionStats.distanceTraveled);
     }
   }
 
@@ -1968,11 +1967,6 @@ class EndlessRunner {
 
     this.sessionStats.gameResult = result;
     const duration = Math.floor((Date.now() - this.sessionStartTime) / 1000);
-
-    console.log("Ending session:", this.sessionId);
-    console.log("Final distance:", this.sessionStats.distanceTraveled);
-    console.log("Duration:", duration);
-    console.log("Result:", result);
 
     // Send session data to server
     fetch('/api/sessions', {

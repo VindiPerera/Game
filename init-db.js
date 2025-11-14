@@ -76,7 +76,7 @@ const createTables = () => {
   const createGameSessionsTable = `
     CREATE TABLE game_sessions (
       id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
+      user_id INT NULL,
       session_id VARCHAR(255) NOT NULL,
       duration_seconds INT NOT NULL,
       final_score INT NOT NULL,
