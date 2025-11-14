@@ -1,0 +1,86 @@
+<html lang="en">
+<head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     <title>Endless Runner Game</title>
+     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gradient-to-b from-sky-300 to-green-300 min-h-screen overflow-hidden">
+     <!-- Game Container -->
+     <div id="gameContainer" class="relative w-full h-screen">
+          <!-- UI Elements -->
+          <div class="absolute top-4 left-4 z-10">
+               <div class="bg-black bg-opacity-50 text-white p-4 rounded-lg">
+                    <div class="text-xl font-bold">Coin: <span id="score">0</span></div>
+                    <div class="text-lg">Distance: <span id="distance">0</span>m</div>
+                    <div class="text-lg font-semibold">Level: <span id="level">1</span></div>
+                    <div class="text-sm">High Coin: <span id="highScore">0</span></div>
+                    <div class="text-sm mt-2">
+                         <div>Obstacle Hits: <span id="obstacleHits">0</span>/3</div>
+                         <div id="slowdownIndicator" class="text-red-400 hidden">SLOWED DOWN!</div>
+                         <div id="doubleJumpIndicator" class="text-blue-400 hidden">DOUBLE JUMP READY!</div>
+                         <div id="slidingIndicator" class="text-purple-400 hidden">SLIDING!</div>
+                         <div id="shieldIndicator" class="text-blue-300 hidden">SHIELD ACTIVE!</div>
+                         <div id="magnetIndicator" class="text-yellow-300 hidden">COIN MAGNET!</div>
+                         <div id="speedIndicator" class="text-orange-300 hidden">SPEED BOOST!</div>
+                         <div id="doubleJumpBoostIndicator" class="text-cyan-300 hidden">MULTI JUMP!</div>
+                         <div id="scoreMultiplierIndicator" class="text-pink-300 hidden">SCORE 2X!</div>
+                         <div id="slowMotionIndicator" class="text-indigo-300 hidden">SLOW MOTION!</div>
+                    </div>
+                    <div class="mt-3 flex gap-2">
+<button id="audioToggle" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"></button>
+<button id="musicToggle" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"></button>
+                    </div>
+               </div>
+          </div>
+
+          <!-- Game Over Screen -->
+          <div id="gameOverScreen" class="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-20 hidden">
+               <div class="bg-white p-8 rounded-lg text-center">
+                    <h2 class="text-3xl font-bold mb-4 text-red-600">Game Over!</h2>
+                    <p class="text-xl mb-2">Final Coin: <span id="finalScore">0</span></p>
+                    <p class="text-lg mb-2">Distance: <span id="finalDistance">0</span>m</p>
+                    <p class="text-lg mb-4">High Coin: <span id="finalHighScore">0</span></p>
+                    <button id="restartBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-bold">
+                         Play Again
+                    </button>
+               </div>
+          </div>
+
+          <!-- Start Screen -->
+          <div id="startScreen" class="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-20">
+               <div class="bg-white p-8 rounded-lg text-center max-w-md">
+                    <h1 class="text-4xl font-bold mb-4 text-blue-600">Endless Runner</h1>
+                    <div class="text-left mb-4">
+                         <h2 class="text-lg font-semibold mb-2">How to Play:</h2>
+                         <ul class="text-sm space-y-1">
+                              <li>• <strong>SPACEBAR:</strong> Jump (press twice for double jump)</li>
+                              <li>• <strong>ARROW DOWN or S:</strong> Crouch/Slide under obstacles</li>
+                              <li>• <strong>Collect coins:</strong> Bonus points and power-ups</li>
+                              <li>• <strong>Avoid obstacles:</strong> You can take 2 hits before the monster becomes deadly</li>
+                              <li>• <strong>Watch out for gaps:</strong> Falling into gaps ends the game instantly</li>
+                              <li>• <strong>Monster:</strong> Gets closer with each hit - avoid it after 2 obstacles!</li>
+                         </ul>
+                         <h3 class="text-md font-semibold mt-3 mb-1">Power-ups:</h3>
+                         <ul class="text-xs space-y-1 text-gray-600">
+                              <li>• <strong>Shield:</strong> Block one obstacle hit without dying</li>
+                              <li>• <strong>Magnet:</strong> Pulls in nearby coins automatically</li>
+                              <li>• <strong>Boost:</strong> Rockets forward with auto-dodge</li>
+                              <li>• <strong>Double Coins:</strong> Doubles coin rewards briefly</li>
+                         </ul>
+                    </div>
+                    <button id="startBtn" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-bold">
+                         Start Game
+                    </button>
+               </div>
+          </div>
+
+          <!-- Game Canvas -->
+          <canvas id="gameCanvas" class="absolute inset-0 w-full h-full"></canvas>
+     </div>
+
+     <script src="game.js"></script>
+</body>
+</html>
+</body>
+</html>

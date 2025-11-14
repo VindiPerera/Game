@@ -27,6 +27,25 @@ app.set('views', join(__dirname, 'views'));
 // Authentication routes
 app.use("/api/auth", authRoutes);
 
+// Middleware to check if user is authenticated for templates
+const checkAuth = (req, res, next) => {
+  const token = req.cookies.token;
+
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      req.user = null;
+    } else {
+      req.user = user;
+    }
+    next();
+  });
+};
+
 // Login page
 app.get("/login", (req, res) => {
   res.render('login', {
@@ -227,24 +246,16 @@ app.post("/auth/logout", (req, res) => {
   res.redirect('/');
 });
 
-// Middleware to check if user is authenticated for templates
-const checkAuth = (req, res, next) => {
-  const token = req.cookies.token;
-
-  if (!token) {
-    req.user = null;
-    return next();
+// Game route (protected)
+app.get("/game", checkAuth, (req, res) => {
+  if (!req.user) {
+    return res.redirect('/login');
   }
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) {
-      req.user = null;
-    } else {
-      req.user = user;
-    }
-    next();
+  res.render('game', {
+    title: 'Endless Runner Game',
+    user: req.user
   });
-};
+});
 
 // Test route
 app.get("/", checkAuth, (req, res) => {
@@ -328,4 +339,8 @@ app.post("/api/scores", authenticateToken, (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
+
+// Serve static files
+app.use(express.static('.'));
+
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

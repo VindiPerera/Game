@@ -75,6 +75,16 @@
             background: #c0392b;
             transform: translateY(-1px);
         }
+
+        .game-btn {
+            background: #10b981;
+            color: white;
+        }
+
+        .game-btn:hover {
+            background: #059669;
+            transform: translateY(-1px);
+        }
         .scores-container {
             background: white;
             border-radius: 8px;
@@ -113,6 +123,7 @@
         <nav class="nav">
             <% if (user) { %>
                 <span class="welcome-user">Welcome, <%= user.username %>!</span>
+                <a href="/game" class="nav-button game-btn">🎮 Play Game</a>
                 <form action="/auth/logout" method="POST" style="display: inline;">
                     <button type="submit" class="nav-button logout-btn">Logout</button>
                 </form>
