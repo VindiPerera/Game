@@ -1,8 +1,30 @@
-import db from "./db.js";
+import mysql from "mysql2";
+import dotenv from "dotenv";
+dotenv.config();
+
+// Create connection
+const db = mysql.createConnection({
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+});
 
 // Function to create database tables
 const createTables = () => {
   console.log("Creating database tables...");
+
+  let completed = 0;
+  const total = 3;
+
+  const checkComplete = () => {
+    completed++;
+    if (completed === total) {
+      console.log("Database initialization completed!");
+      db.end(); // Close connection
+      process.exit(0);
+    }
+  };
 
   // Create users table
   const createUsersTable = `
@@ -56,6 +78,7 @@ const createTables = () => {
     } else {
       console.log("✅ Users table created/verified");
     }
+    checkComplete();
   });
 
   db.query(createScoresTable, (err) => {
@@ -64,6 +87,7 @@ const createTables = () => {
     } else {
       console.log("✅ Scores table created/verified");
     }
+    checkComplete();
   });
 
   db.query(createGameSessionsTable, (err) => {
@@ -72,11 +96,17 @@ const createTables = () => {
     } else {
       console.log("✅ Game sessions table created/verified");
     }
+    checkComplete();
   });
-
-  console.log("Database initialization completed!");
-  process.exit(0);
 };
 
-// Run the table creation
-createTables();
+// Connect and create tables
+db.connect((err) => {
+  if (err) {
+    console.error("Database connection failed:", err);
+    process.exit(1);
+  } else {
+    console.log("✅ Connected to MySQL");
+    createTables();
+  }
+});
