@@ -1913,6 +1913,12 @@ class EndlessRunner {
   
 
   saveScore() {
+    // Skip score saving for guest users (they use sessions instead)
+    if (window.gameUser && window.gameUser.isGuest) {
+      console.log("Guest user - skipping score save, using session save instead");
+      return;
+    }
+
     // Calculate level based on score (every 75 points increases difficulty)
     const level = Math.floor(this.score / 75) + 1;
 
@@ -1968,6 +1974,24 @@ class EndlessRunner {
     this.sessionStats.gameResult = result;
     const duration = Math.floor((Date.now() - this.sessionStartTime) / 1000);
 
+    // Prepare session data
+    const sessionData = {
+      sessionId: this.sessionId,
+      durationSeconds: duration,
+      finalScore: this.score,
+      coinsCollected: this.sessionStats.coinsCollected,
+      obstaclesHit: this.sessionStats.obstaclesHit,
+      powerupsCollected: this.sessionStats.powerupsCollected,
+      distanceTraveled: this.sessionStats.distanceTraveled,
+      gameResult: this.sessionStats.gameResult
+    };
+
+    // Add guest user information if playing as guest
+    if (window.gameUser && window.gameUser.isGuest) {
+      sessionData.guestId = window.gameUser.username;
+      // Don't send guestUserId - server will use null for guests
+    }
+
     // Send session data to server
     fetch('/api/sessions', {
       method: 'POST',
@@ -1975,16 +1999,7 @@ class EndlessRunner {
         'Content-Type': 'application/json',
       },
       credentials: 'same-origin',
-      body: JSON.stringify({
-        sessionId: this.sessionId,
-        durationSeconds: duration,
-        finalScore: this.score,
-        coinsCollected: this.sessionStats.coinsCollected,
-        obstaclesHit: this.sessionStats.obstaclesHit,
-        powerupsCollected: this.sessionStats.powerupsCollected,
-        distanceTraveled: this.sessionStats.distanceTraveled,
-        gameResult: this.sessionStats.gameResult
-      })
+      body: JSON.stringify(sessionData)
     })
     .then(response => response.json())
     .then(data => {
