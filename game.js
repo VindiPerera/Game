@@ -18,8 +18,8 @@ class EndlessRunner {
     this.score = 0;
     this.distance = 0; // Add distance tracking
     this.highScore = localStorage.getItem("highScore") || 0;
-    this.gameSpeed = 6; // Increased from 4 to 6
-    this.baseGameSpeed = 6; // Increased from 4 to 6
+    this.gameSpeed = 7; // Increased from 4 to 6, now to 7
+    this.baseGameSpeed = 7; // Increased from 4 to 6, now to 7
     this.gravity = 0.7; // Increased from 0.8 to 1.0
     this.slowdownTimer = 0;
     this.hitTimestamps = [];
@@ -309,8 +309,8 @@ class EndlessRunner {
     this.gameState = "playing";
     this.score = 0;
     this.distance = 0; // Reset distance
-    this.gameSpeed = 4;
-    this.baseGameSpeed = 4;
+    this.gameSpeed = 7;
+    this.baseGameSpeed = 7;
     this.slowdownTimer = 0;
     this.hitTimestamps = [];
     this.hitFlash = 0;
