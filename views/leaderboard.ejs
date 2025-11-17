@@ -190,9 +190,9 @@
                 <div class="score-item">
                     <div class="username"><%= score.username %></div>
                     <div class="score-details">
-                        <span class="score">Score: <%= score.score %></span>
+                        <span class="score">Coins: <%= score.score %></span>
                         <span class="duration">⏱️ <%= Math.floor(score.duration_seconds / 60) %>:<%= (score.duration_seconds % 60).toString().padStart(2, '0') %></span>
-                        <span class="coins">🪙 <%= score.coins_collected %></span>
+                        <!-- <span class="coins">🪙 <%= score.coins_collected %></span> -->
                         <span class="obstacles">💥 <%= score.obstacles_hit %></span>
                         <span class="powerups">⚡ <%= score.powerups_collected %></span>
                         <span class="distance">📏 <%= Math.floor(score.distance_traveled / 10) %>m</span>

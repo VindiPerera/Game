@@ -522,7 +522,7 @@ class EndlessRunner {
             this.spawnFireTrap();
           }
         } else {
-          // 18% - Coins or power-ups (increased from 8%)
+          // 25% - Coins or power-ups (increased from 18%)
           if (Math.random() < 0.85) {
             // 85% coins, 15% power-ups
             this.spawnCoins();
@@ -572,7 +572,7 @@ class EndlessRunner {
             this.spawnFireTrap();
           }
         } else {
-          // 13% - Coins or power-ups (increased from 3%)
+          // 20% - Coins or power-ups (increased from 13%)
           if (Math.random() < 0.85) {
             // 85% coins, 15% power-ups
             this.spawnCoins();
@@ -742,17 +742,17 @@ class EndlessRunner {
     const coinGroupType = Math.random();
     let coinCount;
 
-    if (coinGroupType < 0.5) {
-      // 50% chance: Single coin
+    if (coinGroupType < 0.3) {
+      // 30% chance: Single coin (reduced from 50%)
       coinCount = 1;
-    } else if (coinGroupType < 0.8) {
-      // 30% chance: Two coins
+    } else if (coinGroupType < 0.6) {
+      // 30% chance: Two coins (increased from 30%)
       coinCount = 2;
-    } else if (coinGroupType < 0.92) {
-      // 12% chance: Small group (3-4 coins)
+    } else if (coinGroupType < 0.85) {
+      // 25% chance: Small group (3-4 coins, increased from 12%)
       coinCount = Math.floor(Math.random() * 2) + 3; // 3-4 coins
     } else {
-      // 8% chance: Large group (5-7 coins)
+      // 15% chance: Large group (5-7 coins, increased from 8%)
       coinCount = Math.floor(Math.random() * 3) + 5; // 5-7 coins
     }
 
