@@ -288,10 +288,22 @@ app.get("/", checkAuth, (req, res) => {
   });
 });
 
-// Leaderboard route
+// Leaderboard route - Shows each user's highest score from last 24 hours
 app.get("/leaderboard", checkAuth, (req, res) => {
   db.query(
-    `SELECT gs.id,
+    `SELECT 
+            ranked_sessions.username,
+            ranked_sessions.score,
+            ranked_sessions.duration_seconds,
+            ranked_sessions.coins_collected,
+            ranked_sessions.obstacles_hit,
+            ranked_sessions.powerups_collected,
+            ranked_sessions.distance_traveled,
+            ranked_sessions.game_result,
+            ranked_sessions.created_at,
+            ranked_sessions.user_id
+     FROM (
+       SELECT 
             CASE 
               WHEN u.username IS NOT NULL THEN u.username 
               WHEN gs.user_id IS NULL THEN CONCAT('Guest_', gs.id)
@@ -305,10 +317,23 @@ app.get("/leaderboard", checkAuth, (req, res) => {
             gs.distance_traveled,
             gs.game_result,
             gs.created_at,
-            gs.user_id
-     FROM game_sessions gs
-     LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
-     ORDER BY gs.final_score DESC LIMIT 20`,
+            gs.user_id,
+            gs.id,
+            ROW_NUMBER() OVER (
+              PARTITION BY 
+                CASE 
+                  WHEN gs.user_id IS NOT NULL THEN gs.user_id 
+                  ELSE CONCAT('guest_', gs.id) 
+                END
+              ORDER BY gs.final_score DESC, gs.created_at DESC
+            ) as rn
+       FROM game_sessions gs
+       LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
+       WHERE gs.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+     ) ranked_sessions
+     WHERE ranked_sessions.rn = 1
+     ORDER BY ranked_sessions.score DESC 
+     LIMIT 20`,
     (err, results) => {
       if (err) {
         console.error("Database error:", err);
@@ -327,18 +352,25 @@ app.get("/leaderboard", checkAuth, (req, res) => {
   );
 });
 
-// Wiki route
-app.get("/wiki", checkAuth, (req, res) => {
-  res.render('wiki', {
-    title: 'Game Wiki - Info, Payouts & Terms',
-    user: req.user
-  });
-});
-
-// Get all scores (public)
-app.get("/api/scores", (req, res) => {
-  db.query(
-    `SELECT gs.id,
+// Winners route - Shows top 3 players from selected day (defaults to yesterday)
+app.get("/winners", checkAuth, (req, res) => {
+  // Get date parameter from query string, default to yesterday
+  const selectedDate = req.query.date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  
+  const query = `
+    SELECT 
+            ranked_sessions.username,
+            ranked_sessions.score,
+            ranked_sessions.duration_seconds,
+            ranked_sessions.coins_collected,
+            ranked_sessions.obstacles_hit,
+            ranked_sessions.powerups_collected,
+            ranked_sessions.distance_traveled,
+            ranked_sessions.game_result,
+            ranked_sessions.created_at,
+            ranked_sessions.user_id
+     FROM (
+       SELECT 
             CASE 
               WHEN u.username IS NOT NULL THEN u.username 
               WHEN gs.user_id IS NULL THEN CONCAT('Guest_', gs.id)
@@ -352,10 +384,99 @@ app.get("/api/scores", (req, res) => {
             gs.distance_traveled,
             gs.game_result,
             gs.created_at,
-            gs.user_id
-     FROM game_sessions gs
-     LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
-     ORDER BY gs.final_score DESC LIMIT 50`,
+            gs.user_id,
+            gs.id,
+            ROW_NUMBER() OVER (
+              PARTITION BY 
+                CASE 
+                  WHEN gs.user_id IS NOT NULL THEN gs.user_id 
+                  ELSE CONCAT('guest_', gs.id) 
+                END
+              ORDER BY gs.final_score DESC, gs.created_at DESC
+            ) as rn
+       FROM game_sessions gs
+       LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
+       WHERE DATE(gs.created_at) = ?
+     ) ranked_sessions
+     WHERE ranked_sessions.rn = 1
+     ORDER BY ranked_sessions.score DESC 
+     LIMIT 3`;
+
+  db.query(query, [selectedDate], (err, results) => {
+    if (err) {
+      console.error("Database error:", err);
+      return res.render('winners', {
+        title: 'Game Winners',
+        winners: [],
+        selectedDate: selectedDate,
+        user: req.user,
+        error: 'Failed to load winners data'
+      });
+    }
+    res.render('winners', {
+      title: 'Game Winners',
+      winners: results,
+      selectedDate: selectedDate,
+      user: req.user,
+      error: null
+    });
+  });
+});
+
+// Wiki route
+app.get("/wiki", checkAuth, (req, res) => {
+  res.render('wiki', {
+    title: 'Game Wiki - Info, Payouts & Terms',
+    user: req.user
+  });
+});
+
+// Get all scores (public) - Shows each user's highest score from last 24 hours
+app.get("/api/scores", (req, res) => {
+  db.query(
+    `SELECT 
+            ranked_sessions.username,
+            ranked_sessions.score,
+            ranked_sessions.duration_seconds,
+            ranked_sessions.coins_collected,
+            ranked_sessions.obstacles_hit,
+            ranked_sessions.powerups_collected,
+            ranked_sessions.distance_traveled,
+            ranked_sessions.game_result,
+            ranked_sessions.created_at,
+            ranked_sessions.user_id
+     FROM (
+       SELECT 
+            CASE 
+              WHEN u.username IS NOT NULL THEN u.username 
+              WHEN gs.user_id IS NULL THEN CONCAT('Guest_', gs.id)
+              ELSE 'Guest' 
+            END as username,
+            gs.final_score as score,
+            gs.duration_seconds,
+            gs.coins_collected,
+            gs.obstacles_hit,
+            gs.powerups_collected,
+            gs.distance_traveled,
+            gs.game_result,
+            gs.created_at,
+            gs.user_id,
+            gs.id,
+            ROW_NUMBER() OVER (
+              PARTITION BY 
+                CASE 
+                  WHEN gs.user_id IS NOT NULL THEN gs.user_id 
+                  ELSE CONCAT('guest_', gs.id) 
+                END
+              ORDER BY gs.final_score DESC, gs.created_at DESC
+            ) as rn
+       FROM game_sessions gs
+       LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
+       WHERE gs.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+     ) ranked_sessions
+     WHERE ranked_sessions.rn = 1
+     ORDER BY ranked_sessions.score DESC 
+     LIMIT 50`,
     (err, results) => {
       if (err) {
         console.error("Database error:", err);
