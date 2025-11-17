@@ -255,8 +255,20 @@ app.get("/game", checkAuth, (req, res) => {
     return res.redirect('/login');
   }
 
-  // For guest users, create a guest user object
-  const user = req.user || { id: 0, username: 'Guest', email: 'guest@example.com', isGuest: true };
+  // For guest users, create a guest user object with unique ID
+  let user;
+  if (isGuest) {
+    const guestId = 'GUEST_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    user = { 
+      id: 0, 
+      username: guestId, 
+      email: 'guest@example.com', 
+      isGuest: true,
+      guestId: guestId 
+    };
+  } else {
+    user = req.user;
+  }
 
   res.render('game', {
     title: 'Endless Runner Game',
@@ -276,7 +288,7 @@ app.get("/", checkAuth, (req, res) => {
 app.get("/leaderboard", checkAuth, (req, res) => {
   db.query(
     `SELECT gs.id,
-            CASE WHEN u.username IS NOT NULL THEN u.username ELSE 'Guest' END as username,
+            CASE WHEN u.username IS NOT NULL THEN u.username ELSE CONCAT('Guest_', gs.id) END as username,
             gs.final_score as score,
             gs.duration_seconds,
             gs.coins_collected,
@@ -286,7 +298,7 @@ app.get("/leaderboard", checkAuth, (req, res) => {
             gs.game_result,
             gs.created_at
      FROM game_sessions gs
-     LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id != 0
+     LEFT JOIN users u ON gs.user_id = u.id
      ORDER BY gs.final_score DESC LIMIT 10`,
     (err, results) => {
       if (err) {
@@ -318,7 +330,7 @@ app.get("/wiki", checkAuth, (req, res) => {
 app.get("/api/scores", (req, res) => {
   db.query(
     `SELECT gs.id,
-            CASE WHEN u.username IS NOT NULL THEN u.username ELSE 'Guest' END as username,
+            CASE WHEN u.username IS NOT NULL THEN u.username ELSE CONCAT('Guest_', gs.id) END as username,
             gs.final_score as score,
             gs.duration_seconds,
             gs.coins_collected,
@@ -328,7 +340,7 @@ app.get("/api/scores", (req, res) => {
             gs.game_result,
             gs.created_at
      FROM game_sessions gs
-     LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id != 0
+     LEFT JOIN users u ON gs.user_id = u.id
      ORDER BY gs.final_score DESC LIMIT 50`,
     (err, results) => {
       if (err) {
@@ -404,8 +416,8 @@ app.post("/api/sessions", (req, res) => {
     }
   }
 
-  // For guest users, use user_id = 0
-  const userId = user ? user.id : 0;
+  // For guest users, use user_id = NULL
+  const userId = user ? user.id : null;
   const username = user ? user.username : 'Guest';
 
   console.log("Session saving request received:", req.body);

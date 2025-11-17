@@ -32,7 +32,7 @@
         }
     </style>
 </head>
-<body class="bg-gradient-to-b from-sky-300 to-green-300 min-h-screen overflow-hidden">
+<body class="bg-gradient-to-b from-sky-300 to-green-300 min-h-screen overflow-hidden" data-user="<%- JSON.stringify(user || {}).replace(/"/g, '&quot;') %>">
     <!-- Back to Menu Link -->
     <a href="/" class="back-link" id="backLink">← Back to Menu</a>
 
@@ -114,6 +114,15 @@
         <canvas id="gameCanvas" class="absolute inset-0 w-full h-full"></canvas>
     </div>
 
+    <script type="text/javascript">
+        // Pass user data to client-side JavaScript
+        try {
+            const userData = document.body.getAttribute('data-user');
+            window.gameUser = userData ? JSON.parse(userData) : {};
+        } catch (e) {
+            window.gameUser = {};
+        }
+    </script>
     <script src="/game.js"></script>
 </body>
 </html>
