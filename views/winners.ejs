@@ -222,8 +222,8 @@
                             <td>⏱️ <%= Math.floor(winner.duration_seconds / 60) %>:<%= (winner.duration_seconds % 60).toString().padStart(2, '0') %></td>
                             <td>🪙 <%= winner.coins_collected %></td>
                             <td>⚡ <%= winner.powerups_collected %></td>
-                            <td><%= winner.duration_minutes %>m</td>
-                            <td>died</td>
+                            <td><%= Math.floor(winner.duration_seconds / 60) %>m</td>
+                            <td><%= winner.game_result || 'died' %></td>
                         </tr>
                     <% }); %>
                 <% } else { %>
@@ -235,8 +235,14 @@
         </table>
         
         <!-- Refresh Button -->
-          </div>
+        <button class="refresh-btn" id="refreshBtn">🔄 Refresh</button>
+    </div>
 
-    
+    <script>
+        // Use proper event listener instead of inline onclick
+        document.getElementById('refreshBtn').addEventListener('click', function() {
+            window.location.href = '/winners';
+        });
+    </script>
 </body>
 </html>
