@@ -28,10 +28,10 @@ CREATE TABLE IF NOT EXISTS scores (
     INDEX idx_score (score DESC)
 );
 
--- Game sessions table (optional - for tracking active gaming sessions)
+-- Game sessions table (supports both authenticated users and guests)
 CREATE TABLE IF NOT EXISTS game_sessions (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NULL,
+    user_id INT NULL, -- NULL for guest players, foreign key for authenticated users
     session_id VARCHAR(255) NOT NULL,
     game_type VARCHAR(50) DEFAULT 'default',
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -44,7 +44,13 @@ CREATE TABLE IF NOT EXISTS game_sessions (
     powerups_collected INT DEFAULT 0,
     distance_traveled INT DEFAULT 0,
     game_result ENUM('completed', 'died', 'quit', 'timeout') DEFAULT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    -- Foreign key constraint only applies when user_id is not NULL
     INDEX idx_user_session (user_id, is_active),
-    INDEX idx_started_at (started_at)
+    INDEX idx_started_at (started_at),
+    INDEX idx_final_score (final_score DESC)
 );
+
+-- Add foreign key constraint that allows NULL values
+ALTER TABLE game_sessions 
+ADD CONSTRAINT fk_user_sessions 
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
