@@ -114,6 +114,25 @@
         <canvas id="gameCanvas" class="absolute inset-0 w-full h-full"></canvas>
     </div>
 
+    <script>
+        // Inject user data for JavaScript to access
+        window.gameUser = {
+            <% if (user) { %>
+                id: <%= user.id === null ? 'null' : user.id %>,
+                username: '<%= user.username %>',
+                email: '<%= user.email %>',
+                isGuest: <%= user.isGuest ? 'true' : 'false' %>,
+                <% if (user.guestId) { %>
+                guestId: '<%= user.guestId %>'
+                <% } %>
+            <% } else { %>
+                id: null,
+                username: null,
+                email: null,
+                isGuest: false
+            <% } %>
+        };
+    </script>
     <script src="/game.js"></script>
 </body>
 </html>

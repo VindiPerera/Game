@@ -255,13 +255,29 @@ app.get("/game", checkAuth, (req, res) => {
     return res.redirect('/login');
   }
 
-  // For guest users, create a guest user object
-  const user = req.user || { id: 0, username: 'Guest', email: 'guest@example.com', isGuest: true };
-
-  res.render('game', {
-    title: 'Endless Runner Game',
-    user: user
-  });
+  // For guest users, create a unique guest user object
+  if (!req.user && isGuest) {
+    // Generate unique guest ID using timestamp and random number
+    const guestId = `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const user = { 
+      id: null, // Use null for guests to avoid foreign key issues
+      username: guestId, 
+      email: 'guest@example.com', 
+      isGuest: true,
+      guestId: guestId
+    };
+    
+    res.render('game', {
+      title: 'Endless Runner Game',
+      user: user
+    });
+  } else {
+    // Authenticated user
+    res.render('game', {
+      title: 'Endless Runner Game',
+      user: req.user
+    });
+  }
 });
 
 // Test route (main menu)
@@ -276,7 +292,11 @@ app.get("/", checkAuth, (req, res) => {
 app.get("/leaderboard", checkAuth, (req, res) => {
   db.query(
     `SELECT gs.id,
-            CASE WHEN u.username IS NOT NULL THEN u.username ELSE 'Guest' END as username,
+            CASE 
+              WHEN u.username IS NOT NULL THEN u.username 
+              WHEN gs.user_id IS NULL THEN CONCAT('Guest_', gs.id)
+              ELSE 'Guest' 
+            END as username,
             gs.final_score as score,
             gs.duration_seconds,
             gs.coins_collected,
@@ -284,10 +304,11 @@ app.get("/leaderboard", checkAuth, (req, res) => {
             gs.powerups_collected,
             gs.distance_traveled,
             gs.game_result,
-            gs.created_at
+            gs.created_at,
+            gs.user_id
      FROM game_sessions gs
-     LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id != 0
-     ORDER BY gs.final_score DESC LIMIT 10`,
+     LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
+     ORDER BY gs.final_score DESC LIMIT 20`,
     (err, results) => {
       if (err) {
         console.error("Database error:", err);
@@ -318,7 +339,11 @@ app.get("/wiki", checkAuth, (req, res) => {
 app.get("/api/scores", (req, res) => {
   db.query(
     `SELECT gs.id,
-            CASE WHEN u.username IS NOT NULL THEN u.username ELSE 'Guest' END as username,
+            CASE 
+              WHEN u.username IS NOT NULL THEN u.username 
+              WHEN gs.user_id IS NULL THEN CONCAT('Guest_', gs.id)
+              ELSE 'Guest' 
+            END as username,
             gs.final_score as score,
             gs.duration_seconds,
             gs.coins_collected,
@@ -326,9 +351,10 @@ app.get("/api/scores", (req, res) => {
             gs.powerups_collected,
             gs.distance_traveled,
             gs.game_result,
-            gs.created_at
+            gs.created_at,
+            gs.user_id
      FROM game_sessions gs
-     LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id != 0
+     LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
      ORDER BY gs.final_score DESC LIMIT 50`,
     (err, results) => {
       if (err) {
@@ -404,12 +430,23 @@ app.post("/api/sessions", (req, res) => {
     }
   }
 
-  // For guest users, use user_id = 0
-  const userId = user ? user.id : 0;
-  const username = user ? user.username : 'Guest';
-
   console.log("Session saving request received:", req.body);
-  console.log("User:", user || 'Guest');
+  console.log("Authenticated user:", user || 'None');
+
+  // Handle guest users - get guest info from request body
+  let userId, username;
+  if (user) {
+    userId = user.id;
+    username = user.username;
+  } else {
+    // For guest users, use NULL for user_id and generate unique guest name
+    const { guestId } = req.body;
+    userId = null; // Use NULL to avoid foreign key constraint issues
+    username = guestId || `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    console.log("Guest info from body:", { guestId, finalUserId: userId, finalUsername: username });
+  }
+
+  console.log("Final userId:", userId, "username:", username);
 
   const {
     sessionId,
@@ -427,15 +464,32 @@ app.post("/api/sessions", (req, res) => {
     return res.status(400).json({ message: "Valid session data is required" });
   }
 
+  // Ensure all values are properly set
+  const dbUserId = userId; // Allow NULL for guests
+  const dbUsername = username || 'Guest';
+  const dbCoinsCollected = coinsCollected || 0;
+  const dbObstaclesHit = obstaclesHit || 0;
+  const dbPowerupsCollected = powerupsCollected || 0;
+  const dbDistanceTraveled = distanceTraveled || 0;
+  const dbGameResult = gameResult || 'unknown';
+
+  console.log("Inserting session with values:", {
+    userId: dbUserId, sessionId, durationSeconds, finalScore, 
+    coinsCollected: dbCoinsCollected, obstaclesHit: dbObstaclesHit, 
+    powerupsCollected: dbPowerupsCollected, distanceTraveled: dbDistanceTraveled, 
+    gameResult: dbGameResult
+  });
+
   db.query(
     "INSERT INTO game_sessions (user_id, session_id, duration_seconds, final_score, coins_collected, obstacles_hit, powerups_collected, distance_traveled, game_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [userId, sessionId, durationSeconds, finalScore, coinsCollected, obstaclesHit, powerupsCollected, distanceTraveled, gameResult],
+    [dbUserId, sessionId, durationSeconds, finalScore, dbCoinsCollected, dbObstaclesHit, dbPowerupsCollected, dbDistanceTraveled, dbGameResult],
     (err, result) => {
       if (err) {
         console.error("Database error saving session:", err);
-        return res.status(500).json({ message: "Failed to save session" });
+        console.error("Error details:", err.message);
+        return res.status(500).json({ message: "Failed to save session: " + err.message });
       }
-      console.log("Session saved successfully:", result.insertId);
+      console.log("Session saved successfully with ID:", result.insertId);
       res.json({
         message: "Session saved successfully!",
         sessionId: result.insertId
