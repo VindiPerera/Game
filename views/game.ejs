@@ -119,6 +119,30 @@
         try {
             const userData = document.body.getAttribute('data-user');
             window.gameUser = userData ? JSON.parse(userData) : {};
+            
+            // For guest users, ensure persistent guest ID
+            if (window.gameUser && window.gameUser.isGuest) {
+                // Get or create persistent guest ID
+                let storedGuestId = localStorage.getItem('guestId');
+                
+                // If URL has a guest ID, use it and store it
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlGuestId = urlParams.get('guestId');
+                
+                if (urlGuestId) {
+                    localStorage.setItem('guestId', urlGuestId);
+                    window.gameUser.guestId = urlGuestId;
+                } else if (storedGuestId) {
+                    window.gameUser.guestId = storedGuestId;
+                } else {
+                    // Create new guest ID if none exists
+                    const newGuestId = 'Guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                    localStorage.setItem('guestId', newGuestId);
+                    window.gameUser.guestId = newGuestId;
+                }
+                
+                console.log('Guest ID set to:', window.gameUser.guestId);
+            }
         } catch (e) {
             window.gameUser = {};
         }

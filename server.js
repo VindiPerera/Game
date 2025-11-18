@@ -6,6 +6,7 @@ import { dirname, join } from 'path';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
+import fs from 'fs';
 import db from "./db.js";
 import authRoutes, { authenticateToken } from "./auth.js";
 
@@ -250,21 +251,22 @@ app.post("/auth/logout", (req, res) => {
 app.get("/game", checkAuth, (req, res) => {
   // Allow guest access if guest=true parameter is present
   const isGuest = req.query.guest === 'true';
+  const guestId = req.query.guestId; // Get guest ID from query params
 
   if (!req.user && !isGuest) {
     return res.redirect('/login');
   }
 
-  // For guest users, create a guest user object with unique ID
+  // For guest users, use provided guest ID or create a new one
   let user;
   if (isGuest) {
-    const guestId = 'GUEST_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const finalGuestId = guestId || 'GUEST_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     user = { 
       id: 0, 
-      username: guestId, 
+      username: finalGuestId, 
       email: 'guest@example.com', 
       isGuest: true,
-      guestId: guestId 
+      guestId: finalGuestId 
     };
   } else {
     user = req.user;
@@ -286,51 +288,14 @@ app.get("/", checkAuth, (req, res) => {
 
 // Leaderboard route - Shows each user's highest score from last 24 hours
 app.get("/leaderboard", checkAuth, (req, res) => {
+  // First get guest mapping
   db.query(
-    `SELECT 
-            ranked_sessions.username,
-            ranked_sessions.score,
-            ranked_sessions.duration_seconds,
-            ranked_sessions.coins_collected,
-            ranked_sessions.obstacles_hit,
-            ranked_sessions.powerups_collected,
-            ranked_sessions.distance_traveled,
-            ranked_sessions.game_result,
-            ranked_sessions.created_at,
-            ranked_sessions.user_id
-     FROM (
-       SELECT 
-            CASE 
-              WHEN u.username IS NOT NULL THEN u.username 
-              WHEN gs.user_id IS NULL THEN CONCAT('Guest_', gs.id)
-              ELSE 'Guest' 
-            END as username,
-            gs.final_score as score,
-            gs.duration_seconds,
-            gs.coins_collected,
-            gs.obstacles_hit,
-            gs.powerups_collected,
-            gs.distance_traveled,
-            gs.game_result,
-            gs.created_at,
-            gs.user_id,
-            gs.id,
-            ROW_NUMBER() OVER (
-              PARTITION BY 
-                CASE 
-                  WHEN gs.user_id IS NOT NULL THEN gs.user_id 
-                  ELSE CONCAT('guest_', gs.id) 
-                END
-              ORDER BY gs.final_score DESC, gs.created_at DESC
-            ) as rn
-       FROM game_sessions gs
-       LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
-       WHERE gs.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-     ) ranked_sessions
-     WHERE ranked_sessions.rn = 1
-     ORDER BY ranked_sessions.score DESC 
-     LIMIT 20`,
-    (err, results) => {
+    `SELECT guest_username, 
+            ROW_NUMBER() OVER (ORDER BY MIN(created_at)) as guest_number
+     FROM game_sessions 
+     WHERE guest_username IS NOT NULL 
+     GROUP BY guest_username`,
+    (err, guestMappings) => {
       if (err) {
         console.error("Database error:", err);
         return res.render('leaderboard', {
@@ -339,11 +304,86 @@ app.get("/leaderboard", checkAuth, (req, res) => {
           user: req.user
         });
       }
-      res.render('leaderboard', {
-        title: 'Game Leaderboard',
-        scores: results,
-        user: req.user
+      
+      // Create a mapping object
+      const guestMap = {};
+      guestMappings.forEach(mapping => {
+        guestMap[mapping.guest_username] = mapping.guest_number;
       });
+      
+      // Now get the main leaderboard query
+      db.query(
+        `SELECT 
+                ranked_sessions.username,
+                ranked_sessions.score,
+                ranked_sessions.duration_seconds,
+                ranked_sessions.coins_collected,
+                ranked_sessions.obstacles_hit,
+                ranked_sessions.powerups_collected,
+                ranked_sessions.distance_traveled,
+                ranked_sessions.game_result,
+                ranked_sessions.created_at,
+                ranked_sessions.user_id,
+                ranked_sessions.guest_username
+         FROM (
+           SELECT 
+                CASE 
+                  WHEN u.username IS NOT NULL THEN u.username 
+                  WHEN gs.guest_username IS NOT NULL THEN gs.guest_username
+                  ELSE 'Guest' 
+                END as username,
+                gs.final_score as score,
+                gs.duration_seconds,
+                gs.coins_collected,
+                gs.obstacles_hit,
+                gs.powerups_collected,
+                gs.distance_traveled,
+                gs.game_result,
+                gs.created_at,
+                gs.user_id,
+                gs.guest_username,
+                gs.id,
+                ROW_NUMBER() OVER (
+                  PARTITION BY 
+                    CASE 
+                      WHEN gs.user_id IS NOT NULL THEN CONCAT('user_', gs.user_id)
+                      WHEN gs.guest_username IS NOT NULL THEN CONCAT('guest_', gs.guest_username)
+                      ELSE CONCAT('unknown_', gs.id)
+                    END
+                  ORDER BY gs.final_score DESC, gs.created_at DESC
+                ) as rn
+           FROM game_sessions gs
+           LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
+           WHERE gs.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+         ) ranked_sessions
+         WHERE ranked_sessions.rn = 1
+         ORDER BY ranked_sessions.score DESC 
+         LIMIT 20`,
+        (err, results) => {
+          if (err) {
+            console.error("Database error:", err);
+            return res.render('leaderboard', {
+              title: 'Game Leaderboard',
+              scores: [],
+              user: req.user
+            });
+          }
+          
+          // Transform guest usernames to friendly format
+          const transformedResults = results.map(result => {
+            if (result.guest_username && guestMap[result.guest_username]) {
+              result.username = `Guest_${guestMap[result.guest_username]}`;
+            }
+            return result;
+          });
+          
+          res.render('leaderboard', {
+            title: 'Game Leaderboard',
+            scores: transformedResults,
+            user: req.user
+          });
+        }
+      );
     }
   );
 });
@@ -363,70 +403,109 @@ app.get("/winners", checkAuth, (req, res) => {
   // Get date parameter from query string, default to yesterday
   const selectedDate = req.query.date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   
-  const query = `
-    SELECT 
-            ranked_sessions.username,
-            ranked_sessions.score,
-            ranked_sessions.duration_seconds,
-            ranked_sessions.coins_collected,
-            ranked_sessions.obstacles_hit,
-            ranked_sessions.powerups_collected,
-            ranked_sessions.distance_traveled,
-            ranked_sessions.game_result,
-            ranked_sessions.created_at,
-            ranked_sessions.user_id
-     FROM (
-       SELECT 
-            CASE 
-              WHEN u.username IS NOT NULL THEN u.username 
-              WHEN gs.user_id IS NULL THEN CONCAT('Guest_', gs.id)
-              ELSE 'Guest' 
-            END as username,
-            gs.final_score as score,
-            gs.duration_seconds,
-            gs.coins_collected,
-            gs.obstacles_hit,
-            gs.powerups_collected,
-            gs.distance_traveled,
-            gs.game_result,
-            gs.created_at,
-            gs.user_id,
-            gs.id,
-            ROW_NUMBER() OVER (
-              PARTITION BY 
+  // First get guest mapping
+  db.query(
+    `SELECT guest_username, 
+            ROW_NUMBER() OVER (ORDER BY MIN(created_at)) as guest_number
+     FROM game_sessions 
+     WHERE guest_username IS NOT NULL 
+     GROUP BY guest_username`,
+    (err, guestMappings) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.render('winners', {
+          title: 'Game Winners',
+          winners: [],
+          selectedDate: selectedDate,
+          user: req.user,
+          error: 'Failed to load winners data'
+        });
+      }
+      
+      // Create a mapping object
+      const guestMap = {};
+      guestMappings.forEach(mapping => {
+        guestMap[mapping.guest_username] = mapping.guest_number;
+      });
+      
+      const query = `
+        SELECT 
+                ranked_sessions.username,
+                ranked_sessions.score,
+                ranked_sessions.duration_seconds,
+                ranked_sessions.coins_collected,
+                ranked_sessions.obstacles_hit,
+                ranked_sessions.powerups_collected,
+                ranked_sessions.distance_traveled,
+                ranked_sessions.game_result,
+                ranked_sessions.created_at,
+                ranked_sessions.user_id,
+                ranked_sessions.guest_username
+         FROM (
+           SELECT 
                 CASE 
-                  WHEN gs.user_id IS NOT NULL THEN gs.user_id 
-                  ELSE CONCAT('guest_', gs.id) 
-                END
-              ORDER BY gs.final_score DESC, gs.created_at DESC
-            ) as rn
-       FROM game_sessions gs
-       LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
-       WHERE DATE(gs.created_at) = ?
-     ) ranked_sessions
-     WHERE ranked_sessions.rn = 1
-     ORDER BY ranked_sessions.score DESC 
-     LIMIT 3`;
+                  WHEN u.username IS NOT NULL THEN u.username 
+                  WHEN gs.guest_username IS NOT NULL THEN gs.guest_username
+                  ELSE 'Guest' 
+                END as username,
+                gs.final_score as score,
+                gs.duration_seconds,
+                gs.coins_collected,
+                gs.obstacles_hit,
+                gs.powerups_collected,
+                gs.distance_traveled,
+                gs.game_result,
+                gs.created_at,
+                gs.user_id,
+                gs.guest_username,
+                gs.id,
+                ROW_NUMBER() OVER (
+                  PARTITION BY 
+                    CASE 
+                      WHEN gs.user_id IS NOT NULL THEN CONCAT('user_', gs.user_id)
+                      WHEN gs.guest_username IS NOT NULL THEN CONCAT('guest_', gs.guest_username)
+                      ELSE CONCAT('unknown_', gs.id)
+                    END
+                  ORDER BY gs.final_score DESC, gs.created_at DESC
+                ) as rn
+           FROM game_sessions gs
+           LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
+           WHERE DATE(gs.created_at) = ?
+         ) ranked_sessions
+         WHERE ranked_sessions.rn = 1
+         ORDER BY ranked_sessions.score DESC 
+         LIMIT 3`;
 
-  db.query(query, [selectedDate], (err, results) => {
-    if (err) {
-      console.error("Database error:", err);
-      return res.render('winners', {
-        title: 'Game Winners',
-        winners: [],
-        selectedDate: selectedDate,
-        user: req.user,
-        error: 'Failed to load winners data'
+      db.query(query, [selectedDate], (err, results) => {
+        if (err) {
+          console.error("Database error:", err);
+          return res.render('winners', {
+            title: 'Game Winners',
+            winners: [],
+            selectedDate: selectedDate,
+            user: req.user,
+            error: 'Failed to load winners data'
+          });
+        }
+        
+        // Transform guest usernames to friendly format
+        const transformedResults = results.map(result => {
+          if (result.guest_username && guestMap[result.guest_username]) {
+            result.username = `Guest_${guestMap[result.guest_username]}`;
+          }
+          return result;
+        });
+        
+        res.render('winners', {
+          title: 'Game Winners',
+          winners: transformedResults,
+          selectedDate: selectedDate,
+          user: req.user,
+          error: null
+        });
       });
     }
-    res.render('winners', {
-      title: 'Game Winners',
-      winners: results,
-      selectedDate: selectedDate,
-      user: req.user,
-      error: null
-    });
-  });
+  );
 });
 
 // Wiki route
@@ -439,64 +518,95 @@ app.get("/wiki", checkAuth, (req, res) => {
 
 // Get all scores (public) - Shows each user's highest score from last 24 hours
 app.get("/api/scores", (req, res) => {
+  // First get guest mapping
   db.query(
-    `SELECT 
-            ranked_sessions.username,
-            ranked_sessions.score,
-            ranked_sessions.duration_seconds,
-            ranked_sessions.coins_collected,
-            ranked_sessions.obstacles_hit,
-            ranked_sessions.powerups_collected,
-            ranked_sessions.distance_traveled,
-            ranked_sessions.game_result,
-            ranked_sessions.created_at,
-            ranked_sessions.user_id
-     FROM (
-       SELECT 
-            CASE 
-              WHEN u.username IS NOT NULL THEN u.username 
-              WHEN gs.user_id IS NULL THEN CONCAT('Guest_', gs.id)
-              ELSE 'Guest' 
-            END as username,
-            gs.final_score as score,
-            gs.duration_seconds,
-            gs.coins_collected,
-            gs.obstacles_hit,
-            gs.powerups_collected,
-            gs.distance_traveled,
-            gs.game_result,
-            gs.created_at,
-            gs.user_id,
-            gs.id,
-            ROW_NUMBER() OVER (
-              PARTITION BY 
-                CASE 
-                  WHEN gs.user_id IS NOT NULL THEN gs.user_id 
-                  ELSE CONCAT('guest_', gs.id) 
-                END
-              ORDER BY gs.final_score DESC, gs.created_at DESC
-            ) as rn
-       FROM game_sessions gs
-       LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
-       WHERE gs.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-     ) ranked_sessions
-     WHERE ranked_sessions.rn = 1
-     ORDER BY ranked_sessions.score DESC 
-     LIMIT 50`,
-    (err, results) => {
+    `SELECT guest_username, 
+            ROW_NUMBER() OVER (ORDER BY MIN(created_at)) as guest_number
+     FROM game_sessions 
+     WHERE guest_username IS NOT NULL 
+     GROUP BY guest_username`,
+    (err, guestMappings) => {
       if (err) {
         console.error("Database error:", err);
         return res.status(500).json({ message: "Failed to fetch scores" });
       }
-      res.json({
-        message: "Scores retrieved successfully",
-        scores: results
+      
+      // Create a mapping object
+      const guestMap = {};
+      guestMappings.forEach(mapping => {
+        guestMap[mapping.guest_username] = mapping.guest_number;
       });
+      
+      db.query(
+        `SELECT 
+                ranked_sessions.username,
+                ranked_sessions.score,
+                ranked_sessions.duration_seconds,
+                ranked_sessions.coins_collected,
+                ranked_sessions.obstacles_hit,
+                ranked_sessions.powerups_collected,
+                ranked_sessions.distance_traveled,
+                ranked_sessions.game_result,
+                ranked_sessions.created_at,
+                ranked_sessions.user_id,
+                ranked_sessions.guest_username
+         FROM (
+           SELECT 
+                CASE 
+                  WHEN u.username IS NOT NULL THEN u.username 
+                  WHEN gs.guest_username IS NOT NULL THEN gs.guest_username
+                  ELSE 'Guest' 
+                END as username,
+                gs.final_score as score,
+                gs.duration_seconds,
+                gs.coins_collected,
+                gs.obstacles_hit,
+                gs.powerups_collected,
+                gs.distance_traveled,
+                gs.game_result,
+                gs.created_at,
+                gs.user_id,
+                gs.guest_username,
+                gs.id,
+                ROW_NUMBER() OVER (
+                  PARTITION BY 
+                    CASE 
+                      WHEN gs.user_id IS NOT NULL THEN CONCAT('user_', gs.user_id)
+                      WHEN gs.guest_username IS NOT NULL THEN CONCAT('guest_', gs.guest_username)
+                      ELSE CONCAT('unknown_', gs.id)
+                    END
+                  ORDER BY gs.final_score DESC, gs.created_at DESC
+                ) as rn
+           FROM game_sessions gs
+           LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
+           WHERE gs.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+         ) ranked_sessions
+         WHERE ranked_sessions.rn = 1
+         ORDER BY ranked_sessions.score DESC 
+         LIMIT 50`,
+        (err, results) => {
+          if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ message: "Failed to fetch scores" });
+          }
+          
+          // Transform guest usernames to friendly format
+          const transformedResults = results.map(result => {
+            if (result.guest_username && guestMap[result.guest_username]) {
+              result.username = `Guest_${guestMap[result.guest_username]}`;
+            }
+            return result;
+          });
+          
+          res.json({
+            message: "Scores retrieved successfully",
+            scores: transformedResults
+          });
+        }
+      );
     }
   );
-});
-
-// Get user's scores (protected)
+});// Get user's scores (protected)
 app.get("/api/scores/my", authenticateToken, (req, res) => {
   db.query(
     "SELECT * FROM scores WHERE user_id = ? ORDER BY score DESC",
@@ -557,23 +667,22 @@ app.post("/api/sessions", (req, res) => {
     }
   }
 
-  console.log("Session saving request received:", req.body);
-  console.log("Authenticated user:", user || 'None');
+  console.log("Session saving request received for:", user ? user.username : 'Guest');
 
   // Handle guest users - get guest info from request body
-  let userId, username;
+  let userId, username, guestUsername;
   if (user) {
     userId = user.id;
     username = user.username;
+    guestUsername = null;
   } else {
-    // For guest users, use NULL for user_id and generate unique guest name
+    // For guest users, use NULL for user_id and store guest ID
     const { guestId } = req.body;
     userId = null; // Use NULL to avoid foreign key constraint issues
-    username = guestId || `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-    console.log("Guest info from body:", { guestId, finalUserId: userId, finalUsername: username });
+    guestUsername = guestId || `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    username = guestUsername; // For display purposes
+    console.log("Saving guest session with ID:", guestUsername);
   }
-
-  console.log("Final userId:", userId, "username:", username);
 
   const {
     sessionId,
@@ -594,6 +703,7 @@ app.post("/api/sessions", (req, res) => {
   // Ensure all values are properly set
   const dbUserId = userId; // Allow NULL for guests
   const dbUsername = username || 'Guest';
+  const dbGuestUsername = guestUsername; // Store guest username for persistence
   const dbCoinsCollected = coinsCollected || 0;
   const dbObstaclesHit = obstaclesHit || 0;
   const dbPowerupsCollected = powerupsCollected || 0;
@@ -601,15 +711,15 @@ app.post("/api/sessions", (req, res) => {
   const dbGameResult = gameResult || 'unknown';
 
   console.log("Inserting session with values:", {
-    userId: dbUserId, sessionId, durationSeconds, finalScore, 
+    userId: dbUserId, guestUsername: dbGuestUsername, sessionId, durationSeconds, finalScore, 
     coinsCollected: dbCoinsCollected, obstaclesHit: dbObstaclesHit, 
     powerupsCollected: dbPowerupsCollected, distanceTraveled: dbDistanceTraveled, 
     gameResult: dbGameResult
   });
 
   db.query(
-    "INSERT INTO game_sessions (user_id, session_id, duration_seconds, final_score, coins_collected, obstacles_hit, powerups_collected, distance_traveled, game_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [dbUserId, sessionId, durationSeconds, finalScore, dbCoinsCollected, dbObstaclesHit, dbPowerupsCollected, dbDistanceTraveled, dbGameResult],
+    "INSERT INTO game_sessions (user_id, guest_username, session_id, duration_seconds, final_score, coins_collected, obstacles_hit, powerups_collected, distance_traveled, game_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [dbUserId, dbGuestUsername, sessionId, durationSeconds, finalScore, dbCoinsCollected, dbObstaclesHit, dbPowerupsCollected, dbDistanceTraveled, dbGameResult],
     (err, result) => {
       if (err) {
         console.error("Database error saving session:", err);

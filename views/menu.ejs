@@ -117,7 +117,7 @@
                     <button type="submit" class="menu-button logout-btn">Logout</button>
                 </form>
             <% } else { %>
-                <a href="/game?guest=true" class="menu-button guest-btn">🎮 Play as Guest</a>
+                <a href="#" id="guestPlayBtn" class="menu-button guest-btn">🎮 Play as Guest</a>
                 <a href="/leaderboard" class="menu-button leaderboard-btn">🏆 View Leaderboard</a>
                 <a href="/winners" class="menu-button register-btn">🏅 View Winners</a>
                 <a href="/wiki" class="menu-button login-btn">📖 Game Wiki</a>
@@ -126,5 +126,24 @@
             <% } %>
         </div>
     </div>
+
+    <script>
+        // Guest ID management
+        function getOrCreateGuestId() {
+            let guestId = localStorage.getItem('guestId');
+            if (!guestId) {
+                guestId = 'Guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('guestId', guestId);
+            }
+            return guestId;
+        }
+
+        // Handle guest play button
+        document.getElementById('guestPlayBtn')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            const guestId = getOrCreateGuestId();
+            window.location.href = `/game?guest=true&guestId=${encodeURIComponent(guestId)}`;
+        });
+    </script>
 </body>
 </html>
