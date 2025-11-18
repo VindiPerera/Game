@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
+    country VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP NULL,
     is_active BOOLEAN DEFAULT TRUE,
@@ -54,3 +55,6 @@ CREATE TABLE IF NOT EXISTS game_sessions (
 ALTER TABLE game_sessions 
 ADD CONSTRAINT fk_user_sessions 
 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+-- Add country column to users table if it doesn't exist
+ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100);
