@@ -87,8 +87,7 @@ class EndlessRunner {
     this.treeTimer = 0;
     this.fireTimer = 0;
     this.pendulumTimer = 0;
-
-    // Power-up effects
+    this.collectibleTimer = 0;
     this.invulnerable = false;
     this.invulnerableTimer = 0;
     this.shieldHits = 0; // Number of hits the shield can take
@@ -349,6 +348,7 @@ class EndlessRunner {
     this.treeTimer = 0;
     this.fireTimer = 0;
     this.pendulumTimer = 0;
+    this.collectibleTimer = 0;
     this.invulnerable = false;
     this.invulnerableTimer = 0;
     this.shieldHits = 0;
@@ -511,7 +511,7 @@ class EndlessRunner {
         } else if (obstacleType < 0.78) {
           // 3% - Rope crossing
           this.spawnRope();
-        } else if (obstacleType < 0.82) {
+        } else if (obstacleType < 0.67) {
           // 4% - Fire traps
           const trapX = this.canvas.width;
           const trapWidth = 60;
@@ -521,15 +521,6 @@ class EndlessRunner {
           if (!wouldOverlapGap) {
             this.spawnFireTrap();
           }
-        } else {
-          // 25% - Coins or power-ups (increased from 18%)
-          if (Math.random() < 0.85) {
-            // 85% coins, 15% power-ups
-            this.spawnCoins();
-          } else {
-            this.spawnPowerUp();
-          }
-          this.consecutiveDangers = 0;
         }
       } else {
         // Score >= 50: Stone most common, then birds, gaps, fire rarest
@@ -561,7 +552,7 @@ class EndlessRunner {
         } else if (obstacleType < 0.83) {
           // 3% - Rope crossing
           this.spawnRope();
-        } else if (obstacleType < 0.87) {
+        } else if (obstacleType < 0.7) {
           // 4% - Fire traps
           const trapX = this.canvas.width;
           const trapWidth = 60;
@@ -571,15 +562,6 @@ class EndlessRunner {
           if (!wouldOverlapGap) {
             this.spawnFireTrap();
           }
-        } else {
-          // 20% - Coins or power-ups (increased from 13%)
-          if (Math.random() < 0.85) {
-            // 85% coins, 15% power-ups
-            this.spawnCoins();
-          } else {
-            this.spawnPowerUp();
-          }
-          this.consecutiveDangers = 0;
         }
       }
 
@@ -804,11 +786,9 @@ class EndlessRunner {
     }
   }
 
-  spawnPowerUp() {
+  spawnPowerUp(type) {
     // Creates power-up items that give special abilities when collected
     // Types: shield (invulnerability), magnet (attracts coins), boost (speed), doublecoins (score multiplier)
-    const powerUpTypes = ["shield", "magnet", "boost", "doublecoins"];
-    const type = powerUpTypes[Math.floor(Math.random() * powerUpTypes.length)];
 
     this.powerUps.push({
       x: this.canvas.width,
@@ -819,6 +799,34 @@ class EndlessRunner {
       frame: 0,
       collected: false,
     });
+  }
+
+  spawnCollectibles() {
+    // Creates collectible items (coins and power-ups) with specific spawn percentages
+    // Uses separate timer from obstacles for independent spawning
+    if (this.collectibleTimer <= 0) {
+      const rand = Math.random();
+      if (rand < 0.8) {
+        // 80% chance for coins
+        this.spawnCoins();
+      } else if (rand < 0.9) {
+        // 10% chance for shield power-up
+        this.spawnPowerUp("shield");
+      } else if (rand < 0.9) {
+        // 10% chance for magnet power-up
+        this.spawnPowerUp("magnet");
+      } else if (rand < 0.95) {
+        // 5% chance for boost power-up
+        this.spawnPowerUp("boost");
+      } else {
+        // 5% chance for doublecoins power-up
+        this.spawnPowerUp("doublecoins");
+      }
+
+      // Set collectible timer - shorter than obstacle timer for more frequent spawning
+      this.collectibleTimer = Math.random() * 50 + 50; // 50-100 frames (more frequent than obstacles)
+    }
+    this.collectibleTimer--;
   }
 
   spawnFireTrap() {
@@ -4191,6 +4199,7 @@ class EndlessRunner {
 
     this.updatePlayer();
     this.spawnObstacle();
+    this.spawnCollectibles();
     this.updateObstacles();
     this.updateMonster();
     this.updateClouds();

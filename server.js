@@ -145,7 +145,7 @@ app.post("/auth/login", async (req, res) => {
 
 // Handle register form submission
 app.post("/auth/register", async (req, res) => {
-  const { username, email, password, confirmPassword } = req.body;
+  const { username, email, password, confirmPassword, country } = req.body;
 
   // Validation
   if (!username || !email || !password || !confirmPassword) {
@@ -196,8 +196,8 @@ app.post("/auth/register", async (req, res) => {
 
         // Insert new user
         db.query(
-          "INSERT INTO users (username, email, password, created_at) VALUES (?, ?, ?, NOW())",
-          [username, email, hashedPassword],
+          "INSERT INTO users (username, email, password, country, created_at) VALUES (?, ?, ?, ?, NOW())",
+          [username, email, hashedPassword, country && country.trim() ? country.trim() : null],
           (err, result) => {
             if (err) {
               console.error("Database error:", err);
