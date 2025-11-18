@@ -286,6 +286,15 @@ app.post("/auth/register", async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Final safety check before database insertion - prevent null country
+    if (!country || country === null || country === "Unknown" || country.trim() === "") {
+      console.error("❌ CRITICAL: Attempted to register user with invalid country:", country);
+      return res.render("register", {
+        title: "Register",
+        error: "Unable to verify your location. Registration cannot be completed.",
+      });
+    }
+
     // Insert new user
     const result = await new Promise((resolve, reject) => {
       db.query(
