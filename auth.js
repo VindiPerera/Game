@@ -30,17 +30,16 @@ export const authenticateToken = (req, res, next) => {
 
 // Register/Signup Route
 router.post("/register", async (req, res) => {
-  console.log("[DEBUG] Registration attempt - Full request body:", req.body);
-  const { username, email, password, country } = req.body;
-  console.log("[DEBUG] Extracted values - Username:", username, "| Email:", email, "| Country:", country, "| Country type:", typeof country);
+  console.log("[DEBUG] API Registration attempt - Full request body:", req.body);
+  const { username, email, password } = req.body;
+  console.log("[DEBUG] API Extracted values - Username:", username, "| Email:", email);
 
   // Validation
-  if (!username || !email || !password || !country) {
-    console.log("[DEBUG] Validation failed - Missing fields:", {
+  if (!username || !email || !password) {
+    console.log("[DEBUG] API Validation failed - Missing fields:", {
       username: !username,
       email: !email,
-      password: !password,
-      country: !country
+      password: !password
     });
     return res.status(400).json({ message: "All fields are required" });
   }
@@ -68,14 +67,14 @@ router.post("/register", async (req, res) => {
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-        console.log("[DEBUG] About to insert user - Country value:", country, "| Type:", typeof country, "| Is null:", country === null, "| Is undefined:", country === undefined);
+        console.log("[DEBUG] API route - inserting user without country (country handled by server.js route)");
         
-        // Insert new user
+        // Insert new user - Note: country should be set by the /auth/register route in server.js
         db.query(
-          "INSERT INTO users (username, email, password, country, created_at) VALUES (?, ?, ?, ?, NOW())",
-          [username, email, hashedPassword, country],
+          "INSERT INTO users (username, email, password, created_at) VALUES (?, ?, ?, NOW())",
+          [username, email, hashedPassword],
           (err, result) => {
-            console.log("[DEBUG] Database insert result - Error:", err ? err.message : 'none', "| Result ID:", result ? result.insertId : 'none');
+            console.log("[DEBUG] API Database insert result - Error:", err ? err.message : 'none', "| Result ID:", result ? result.insertId : 'none');
             if (err) {
               console.error("Database error:", err);
               return res.status(500).json({ message: "Failed to create user" });
@@ -92,7 +91,7 @@ router.post("/register", async (req, res) => {
               { expiresIn: "24h" }
             );
 
-            console.log("[DEBUG] User registered successfully - ID:", result.insertId, "| Username:", username, "| Country was:", country);
+            console.log("[DEBUG] API User registered successfully - ID:", result.insertId, "| Username:", username);
             
             res.status(201).json({
               message: "User registered successfully",
