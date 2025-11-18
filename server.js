@@ -350,6 +350,16 @@ app.get("/leaderboard", checkAuth, (req, res) => {
 
 // Winners route - Shows top 3 players from selected day (defaults to yesterday)
 app.get("/winners", checkAuth, (req, res) => {
+  // Set permissive CSP for winners page to allow Bootstrap, images, and inline scripts
+  res.setHeader('Content-Security-Policy', 
+    "default-src 'self'; " +
+    "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " +
+    "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " +
+    "img-src 'self' data: https:; " +
+    "font-src 'self' https://cdn.jsdelivr.net data:; " +
+    "connect-src 'self'"
+  );
+  
   // Get date parameter from query string, default to yesterday
   const selectedDate = req.query.date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   
