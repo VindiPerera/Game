@@ -288,30 +288,7 @@ app.get("/", checkAuth, (req, res) => {
 
 // Leaderboard route - Shows each user's highest score from last 24 hours
 app.get("/leaderboard", checkAuth, (req, res) => {
-  // First get guest mapping
-  db.query(
-    `SELECT guest_username, 
-            ROW_NUMBER() OVER (ORDER BY MIN(created_at)) as guest_number
-     FROM game_sessions 
-     WHERE guest_username IS NOT NULL 
-     GROUP BY guest_username`,
-    (err, guestMappings) => {
-      if (err) {
-        console.error("Database error:", err);
-        return res.render('leaderboard', {
-          title: 'Game Leaderboard',
-          scores: [],
-          user: req.user
-        });
-      }
-      
-      // Create a mapping object
-      const guestMap = {};
-      guestMappings.forEach(mapping => {
-        guestMap[mapping.guest_username] = mapping.guest_number;
-      });
-      
-      // Now get the main leaderboard query
+  // Get the main leaderboard query
       db.query(
         `SELECT 
                 ranked_sessions.username,
@@ -369,23 +346,13 @@ app.get("/leaderboard", checkAuth, (req, res) => {
             });
           }
           
-          // Transform guest usernames to friendly format
-          const transformedResults = results.map(result => {
-            if (result.guest_username && guestMap[result.guest_username]) {
-              result.username = `Guest_${guestMap[result.guest_username]}`;
-            }
-            return result;
-          });
-          
           res.render('leaderboard', {
             title: 'Game Leaderboard',
-            scores: transformedResults,
+            scores: results,
             user: req.user
           });
         }
       );
-    }
-  );
 });
 
 // Winners route - Shows top 3 players from selected day (defaults to yesterday)
@@ -403,32 +370,7 @@ app.get("/winners", checkAuth, (req, res) => {
   // Get date parameter from query string, default to yesterday
   const selectedDate = req.query.date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
   
-  // First get guest mapping
-  db.query(
-    `SELECT guest_username, 
-            ROW_NUMBER() OVER (ORDER BY MIN(created_at)) as guest_number
-     FROM game_sessions 
-     WHERE guest_username IS NOT NULL 
-     GROUP BY guest_username`,
-    (err, guestMappings) => {
-      if (err) {
-        console.error("Database error:", err);
-        return res.render('winners', {
-          title: 'Game Winners',
-          winners: [],
-          selectedDate: selectedDate,
-          user: req.user,
-          error: 'Failed to load winners data'
-        });
-      }
-      
-      // Create a mapping object
-      const guestMap = {};
-      guestMappings.forEach(mapping => {
-        guestMap[mapping.guest_username] = mapping.guest_number;
-      });
-      
-      const query = `
+  const query = `
         SELECT 
                 ranked_sessions.username,
                 ranked_sessions.score,
@@ -476,36 +418,26 @@ app.get("/winners", checkAuth, (req, res) => {
          ORDER BY ranked_sessions.score DESC 
          LIMIT 3`;
 
-      db.query(query, [selectedDate], (err, results) => {
-        if (err) {
-          console.error("Database error:", err);
-          return res.render('winners', {
-            title: 'Game Winners',
-            winners: [],
-            selectedDate: selectedDate,
-            user: req.user,
-            error: 'Failed to load winners data'
-          });
-        }
-        
-        // Transform guest usernames to friendly format
-        const transformedResults = results.map(result => {
-          if (result.guest_username && guestMap[result.guest_username]) {
-            result.username = `Guest_${guestMap[result.guest_username]}`;
-          }
-          return result;
-        });
-        
-        res.render('winners', {
-          title: 'Game Winners',
-          winners: transformedResults,
-          selectedDate: selectedDate,
-          user: req.user,
-          error: null
-        });
+  db.query(query, [selectedDate], (err, results) => {
+    if (err) {
+      console.error("Database error:", err);
+      return res.render('winners', {
+        title: 'Game Winners',
+        winners: [],
+        selectedDate: selectedDate,
+        user: req.user,
+        error: 'Failed to load winners data'
       });
     }
-  );
+    
+    res.render('winners', {
+      title: 'Game Winners',
+      winners: results,
+      selectedDate: selectedDate,
+      user: req.user,
+      error: null
+    });
+  });
 });
 
 // Wiki route
@@ -518,24 +450,6 @@ app.get("/wiki", checkAuth, (req, res) => {
 
 // Get all scores (public) - Shows each user's highest score from last 24 hours
 app.get("/api/scores", (req, res) => {
-  // First get guest mapping
-  db.query(
-    `SELECT guest_username, 
-            ROW_NUMBER() OVER (ORDER BY MIN(created_at)) as guest_number
-     FROM game_sessions 
-     WHERE guest_username IS NOT NULL 
-     GROUP BY guest_username`,
-    (err, guestMappings) => {
-      if (err) {
-        console.error("Database error:", err);
-        return res.status(500).json({ message: "Failed to fetch scores" });
-      }
-      
-      // Create a mapping object
-      const guestMap = {};
-      guestMappings.forEach(mapping => {
-        guestMap[mapping.guest_username] = mapping.guest_number;
-      });
       
       db.query(
         `SELECT 
@@ -590,23 +504,15 @@ app.get("/api/scores", (req, res) => {
             return res.status(500).json({ message: "Failed to fetch scores" });
           }
           
-          // Transform guest usernames to friendly format
-          const transformedResults = results.map(result => {
-            if (result.guest_username && guestMap[result.guest_username]) {
-              result.username = `Guest_${guestMap[result.guest_username]}`;
-            }
-            return result;
-          });
-          
           res.json({
             message: "Scores retrieved successfully",
-            scores: transformedResults
+            scores: results
           });
         }
       );
-    }
-  );
-});// Get user's scores (protected)
+});
+
+// Get user's scores (protected)
 app.get("/api/scores/my", authenticateToken, (req, res) => {
   db.query(
     "SELECT * FROM scores WHERE user_id = ? ORDER BY score DESC",
@@ -703,7 +609,7 @@ app.post("/api/sessions", (req, res) => {
   // Ensure all values are properly set
   const dbUserId = userId; // Allow NULL for guests
   const dbUsername = username || 'Guest';
-  const dbGuestUsername = guestUsername; // Store guest username for persistence
+  let dbGuestUsername; // Will be generated for guests or set to null for registered users
   const dbCoinsCollected = coinsCollected || 0;
   const dbObstaclesHit = obstaclesHit || 0;
   const dbPowerupsCollected = powerupsCollected || 0;
@@ -711,28 +617,125 @@ app.post("/api/sessions", (req, res) => {
   const dbGameResult = gameResult || 'unknown';
 
   console.log("Inserting session with values:", {
-    userId: dbUserId, guestUsername: dbGuestUsername, sessionId, durationSeconds, finalScore, 
+    userId: dbUserId, sessionId, durationSeconds, finalScore, 
     coinsCollected: dbCoinsCollected, obstaclesHit: dbObstaclesHit, 
     powerupsCollected: dbPowerupsCollected, distanceTraveled: dbDistanceTraveled, 
     gameResult: dbGameResult
   });
 
-  db.query(
-    "INSERT INTO game_sessions (user_id, guest_username, session_id, duration_seconds, final_score, coins_collected, obstacles_hit, powerups_collected, distance_traveled, game_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [dbUserId, dbGuestUsername, sessionId, durationSeconds, finalScore, dbCoinsCollected, dbObstaclesHit, dbPowerupsCollected, dbDistanceTraveled, dbGameResult],
-    (err, result) => {
-      if (err) {
-        console.error("Database error saving session:", err);
-        console.error("Error details:", err.message);
-        return res.status(500).json({ message: "Failed to save session: " + err.message });
-      }
-      console.log("Session saved successfully with ID:", result.insertId);
-      res.json({
-        message: "Session saved successfully!",
-        sessionId: result.insertId
-      });
+  // Generate or reuse guest username based on localStorage guest ID
+  console.log("🔍 Processing guest session - dbUserId:", dbUserId, "guestUsername:", guestUsername);
+  if (!dbUserId) {
+    // Create a guest mapping table in memory for this session
+    if (!global.guestMappings) {
+      global.guestMappings = new Map();
     }
-  );
+    
+    console.log("📋 Guest username check:", guestUsername, "starts with Guest_?", guestUsername && guestUsername.startsWith('Guest_'));
+    // Check if we already have a Guest_X username for this localStorage guest ID  
+    if (guestUsername && guestUsername.startsWith('Guest_')) {
+      // First check our in-memory mapping
+      if (global.guestMappings.has(guestUsername)) {
+        dbGuestUsername = global.guestMappings.get(guestUsername);
+        console.log("Reusing cached guest username:", dbGuestUsername, "for guest ID:", guestUsername);
+        insertGuestSession();
+        return;
+      }
+      
+      // Check database for existing mapping by searching for the original guest ID in session_id field
+      console.log("Checking database for existing guest ID:", guestUsername);
+      db.query(
+        "SELECT DISTINCT guest_username FROM game_sessions WHERE session_id LIKE ? AND guest_username REGEXP '^Guest_[0-9]+$' LIMIT 1", 
+        [`%|${guestUsername}`],
+        (err, existingResults) => {
+          console.log("Database query results:", existingResults, "Error:", err);
+          if (err) {
+            console.error("Error checking existing guest:", err);
+            generateNewGuestUsername();
+            return;
+          }
+          
+          if (existingResults && existingResults.length > 0) {
+            // Reuse existing guest username from database
+            dbGuestUsername = existingResults[0].guest_username;
+            global.guestMappings.set(guestUsername, dbGuestUsername);
+            console.log("✅ Reusing database guest username:", dbGuestUsername, "for guest ID:", guestUsername);
+            insertGuestSession();
+          } else {
+            console.log("❌ No existing guest found, creating new username for:", guestUsername);
+            // Generate new guest username for this localStorage guest ID
+            generateNewGuestUsername();
+          }
+        }
+      );
+    } else {
+      // No guest ID provided, generate new one
+      generateNewGuestUsername();
+    }
+
+    function generateNewGuestUsername() {
+      db.query(
+        "SELECT MAX(CAST(SUBSTRING_INDEX(guest_username, '_', -1) AS UNSIGNED)) AS max_guest_number FROM game_sessions WHERE guest_username REGEXP '^Guest_[0-9]+$'",
+        (err, results) => {
+          if (err) {
+            console.error("Error fetching max guest number:", err);
+            return res.status(500).json({ message: "Failed to generate guest username" });
+          }
+
+          const nextGuestNumber = (results[0].max_guest_number || 0) + 1;
+          dbGuestUsername = `Guest_${nextGuestNumber}`;
+          
+          // Store the mapping for future use
+          if (guestUsername && guestUsername.startsWith('guest_')) {
+            global.guestMappings.set(guestUsername, dbGuestUsername);
+          }
+          
+          console.log("Generated new guest username:", dbGuestUsername, "for guest ID:", guestUsername);
+          insertGuestSession();
+        }
+      );
+    }
+
+    function insertGuestSession() {
+      // Create a combined session ID that includes the original guest ID for easy searching
+      const combinedSessionId = guestUsername ? `${sessionId}|${guestUsername}` : sessionId;
+
+      // Insert the guest session
+      db.query(
+        "INSERT INTO game_sessions (user_id, guest_username, session_id, duration_seconds, final_score, coins_collected, obstacles_hit, powerups_collected, distance_traveled, game_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [dbUserId, dbGuestUsername, combinedSessionId, durationSeconds, finalScore, dbCoinsCollected, dbObstaclesHit, dbPowerupsCollected, dbDistanceTraveled, dbGameResult],
+        (err, result) => {
+          if (err) {
+            console.error("Database error saving session:", err);
+            return res.status(500).json({ message: "Failed to save session" });
+          }
+          console.log("Session saved successfully with ID:", result.insertId);
+          res.json({
+            message: "Session saved successfully!",
+            sessionId: result.insertId
+          });
+        }
+      );
+    }
+  } else {
+    // Proceed with inserting the session for registered users
+    dbGuestUsername = null; // No guest username for registered users
+    db.query(
+      "INSERT INTO game_sessions (user_id, guest_username, session_id, duration_seconds, final_score, coins_collected, obstacles_hit, powerups_collected, distance_traveled, game_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [dbUserId, dbGuestUsername, sessionId, durationSeconds, finalScore, dbCoinsCollected, dbObstaclesHit, dbPowerupsCollected, dbDistanceTraveled, dbGameResult],
+      (err, result) => {
+        if (err) {
+          console.error("Database error saving session:", err);
+          return res.status(500).json({ message: "Failed to save session" });
+        }
+        console.log("Session saved successfully with ID:", result.insertId);
+        res.json({
+          message: "Session saved successfully!",
+          sessionId: result.insertId
+        });
+      }
+    );
+  }
 });
 
 const PORT = process.env.PORT || 5000;
