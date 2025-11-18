@@ -47,7 +47,7 @@ const createTables = () => {
       username VARCHAR(50) UNIQUE NOT NULL,
       email VARCHAR(100) UNIQUE NOT NULL,
       password VARCHAR(255) NOT NULL,
-      country VARCHAR(100) NOT NULL,
+      country VARCHAR(100) DEFAULT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       last_login TIMESTAMP NULL,
       is_active BOOLEAN DEFAULT TRUE,
@@ -128,7 +128,7 @@ const createTables = () => {
 
     // Add country column to existing users table if it doesn't exist
     setTimeout(() => {
-      db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100) NOT NULL DEFAULT 'Unknown'", (err) => {
+      db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100) DEFAULT NULL", (err) => {
         if (err) {
           console.error("Error adding country column:", err);
         } else {

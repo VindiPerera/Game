@@ -217,12 +217,6 @@
             </div>
 
             <div class="form-group">
-                <label for="country">Country</label>
-                <input type="text" id="country" name="country" required placeholder="Enter your country" maxlength="100">
-                <div class="error-message" id="countryError"></div>
-            </div>
-
-            <div class="form-group">
                 <label for="confirmPassword">Confirm Password</label>
                 <input type="password" id="confirmPassword" name="confirmPassword" required placeholder="Confirm your password">
                 <div class="error-message" id="confirmPasswordError"></div>
@@ -277,7 +271,6 @@
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirmPassword').value;
-            const country = document.getElementById('country').value.trim();
             let isValid = true;
 
             // Reset errors
@@ -334,14 +327,6 @@
                 document.getElementById('confirmPasswordError').textContent = 'Passwords do not match';
                 document.getElementById('confirmPasswordError').classList.add('show');
                 document.getElementById('confirmPassword').classList.add('error');
-                isValid = false;
-            }
-
-            // Country validation
-            if (!country) {
-                document.getElementById('countryError').textContent = 'Country is required';
-                document.getElementById('countryError').classList.add('show');
-                document.getElementById('country').classList.add('error');
                 isValid = false;
             }
 
