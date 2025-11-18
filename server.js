@@ -196,12 +196,6 @@ app.post("/auth/register", async (req, res) => {
     }
 
     // Get user's IP address (improved for hosted environments)
-    console.log("========== IP DETECTION DEBUG ==========");
-    console.log("All request headers:", JSON.stringify(req.headers, null, 2));
-    console.log("req.ip:", req.ip);
-    console.log("req.connection.remoteAddress:", req.connection?.remoteAddress);
-    console.log("req.socket.remoteAddress:", req.socket?.remoteAddress);
-    
     let userIP =
       req.headers['x-real-ip'] || // Nginx
       req.headers['cf-connecting-ip'] || // Cloudflare
@@ -211,158 +205,90 @@ app.post("/auth/register", async (req, res) => {
       req.socket.remoteAddress ||
       (req.connection.socket ? req.connection.socket.remoteAddress : null);
 
-    console.log("🔍 Raw IP detected:", userIP);
-    console.log("IP source breakdown:");
-    console.log("  - x-real-ip:", req.headers['x-real-ip']);
-    console.log("  - cf-connecting-ip:", req.headers['cf-connecting-ip']);
-    console.log("  - x-forwarded-for:", req.headers['x-forwarded-for']);
-    console.log("========================================");
+    console.log("Raw IP detected:", userIP);
 
     // Clean IPv6-mapped IPv4 addresses (::ffff:192.168.1.1 -> 192.168.1.1)
     if (userIP && userIP.startsWith("::ffff:")) {
       userIP = userIP.substring(7);
-      console.log("🔧 Cleaned IPv6-mapped address to:", userIP);
     }
 
-    console.log("✅ Final cleaned IP:", userIP);
+    console.log("Cleaned IP:", userIP);
 
     // Initialize country
     let country = "Unknown";
 
     // Check if it's a local/private IP
-    console.log("\n========== LOCAL IP CHECK ==========");
-    const isIPv6Localhost = userIP === "::1";
-    const isIPv4Localhost = userIP === "127.0.0.1";
-    const is192Network = userIP?.startsWith("192.168.");
-    const is10Network = userIP?.startsWith("10.");
-    const is172Network = /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(userIP || "");
-    const isNoIP = !userIP;
-    
-    console.log("IP checks:");
-    console.log("  - No IP:", isNoIP);
-    console.log("  - IPv6 localhost (::1):", isIPv6Localhost);
-    console.log("  - IPv4 localhost (127.0.0.1):", isIPv4Localhost);
-    console.log("  - 192.168.x.x network:", is192Network);
-    console.log("  - 10.x.x.x network:", is10Network);
-    console.log("  - 172.16-31.x.x network:", is172Network);
-    
-    const isLocalIP = isNoIP || isIPv6Localhost || isIPv4Localhost || is192Network || is10Network || is172Network;
-    console.log("🏠 Is Local/Private IP:", isLocalIP);
-    console.log("====================================\n");
+    const isLocalIP = !userIP || 
+                      userIP === "::1" ||
+                      userIP === "127.0.0.1" ||
+                      userIP.startsWith("192.168.") ||
+                      userIP.startsWith("10.") ||
+                      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(userIP);
 
     if (isLocalIP) {
-      console.log("❌ Local/Private IP detected - Blocking registration");
-      console.log("Reason: Cannot register from local network");
+      console.log("Local/Private IP detected - cannot register from local network");
       return res.render("register", {
         title: "Register",
         error: "Registration is not available from local networks. Please use a public internet connection.",
       });
     } else {
       // Get country from IP using API with timeout
-      console.log("\n========== COUNTRY API CALL ==========");
       try {
-        const apiURL = `http://ip-api.com/json/${userIP}?fields=status,message,country`;
-        console.log("📡 Calling IP-API with URL:", apiURL);
-        console.log("IP being queried:", userIP);
+        console.log("Fetching country for IP:", userIP);
         
         const controller = new AbortController();
-        const timeout = setTimeout(() => {
-          console.log("⏱️ Request timeout after 5 seconds");
-          controller.abort();
-        }, 5000); // 5 second timeout
+        const timeout = setTimeout(() => controller.abort(), 5000); // 5 second timeout
         
-        console.log("⏳ Fetching country data...");
-        const fetchStartTime = Date.now();
-        
-        const response = await fetch(apiURL, {
+        const response = await fetch(`http://ip-api.com/json/${userIP}?fields=status,message,country`, {
           method: 'GET',
           headers: { 'Accept': 'application/json' },
           signal: controller.signal
         });
         
-        const fetchEndTime = Date.now();
-        console.log(`✅ Fetch completed in ${fetchEndTime - fetchStartTime}ms`);
-        
         clearTimeout(timeout);
         
-        console.log("Response status:", response.status);
-        console.log("Response ok:", response.ok);
-        console.log("Response headers:", JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
-        
         if (!response.ok) {
-          console.error("❌ IP-API HTTP error:", response.status, response.statusText);
+          console.error("IP-API HTTP error:", response.status, response.statusText);
           throw new Error(`HTTP error ${response.status}`);
         }
         
-        const responseText = await response.text();
-        console.log("Raw response body:", responseText);
-        
-        const data = JSON.parse(responseText);
-        console.log("✅ Parsed JSON response:", JSON.stringify(data, null, 2));
+        const data = await response.json();
+        console.log("IP-API full response:", JSON.stringify(data));
         
         if (data.status === "success" && data.country) {
           country = data.country;
-          console.log("🎉 SUCCESS - Country detected:", country);
+          console.log("✅ Country successfully detected:", country);
         } else {
-          console.log("❌ IP-API returned failure status");
-          console.log("Status:", data.status);
-          console.log("Message:", data.message || "No message provided");
-          console.log("Country field:", data.country);
+          console.log("❌ IP-API returned failure:", data.message || "Unknown error");
           throw new Error(data.message || "Country detection failed");
         }
       } catch (error) {
-        console.log("====================================\n");
-        console.error("❌❌❌ COUNTRY DETECTION ERROR ❌❌❌");
-        console.error("Error type:", error.name);
-        console.error("Error message:", error.message);
-        console.error("Error stack:", error.stack);
-        console.log("=====================================");
-        
+        console.error("❌ Error fetching country:", error.message);
         // Don't allow registration if country cannot be determined
         return res.render("register", {
           title: "Register",
           error: "Unable to verify your location. Please try again later or contact support.",
         });
       }
-      console.log("====================================\n");
     }
 
     console.log("📍 Final country value for user:", country);
 
     // Final validation - ensure country is not null or empty
-    console.log("\n========== FINAL VALIDATION ==========");
-    console.log("Country value:", country);
-    console.log("Country type:", typeof country);
-    console.log("Is 'Unknown':", country === "Unknown");
-    console.log("Is null:", country === null);
-    console.log("Is undefined:", country === undefined);
-    console.log("Is empty string:", country === "");
-    console.log("Is falsy:", !country);
-    
     if (!country || country === "Unknown") {
       console.error("❌ Registration blocked - country could not be determined");
-      console.log("====================================\n");
       return res.render("register", {
         title: "Register",
         error: "Unable to verify your location. Please try again later.",
       });
     }
-    console.log("✅ Country validation passed");
-    console.log("====================================\n");
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Final safety check before database insertion - prevent null country
-    console.log("\n========== PRE-DATABASE INSERT CHECK ==========");
-    console.log("Username:", username);
-    console.log("Email:", email);
-    console.log("Country:", country);
-    console.log("Country is valid:", country && country !== "Unknown" && country.trim() !== "");
-    
     if (!country || country === null || country === "Unknown" || country.trim() === "") {
       console.error("❌ CRITICAL: Attempted to register user with invalid country:", country);
-      console.log("===============================================\n");
       return res.render("register", {
         title: "Register",
         error: "Unable to verify your location. Registration cannot be completed.",
@@ -370,38 +296,26 @@ app.post("/auth/register", async (req, res) => {
     }
 
     // Insert new user
-    console.log("📝 Executing INSERT query with country:", country);
     const result = await new Promise((resolve, reject) => {
       db.query(
         "INSERT INTO users (username, email, password, country, created_at) VALUES (?, ?, ?, ?, NOW())",
         [username, email, hashedPassword, country],
         (err, result) => {
           if (err) {
-            console.error("❌ Database insert error:", err);
-            console.error("Error code:", err.code);
-            console.error("Error message:", err.message);
-            console.error("SQL State:", err.sqlState);
+            console.error("Database insert error:", err);
             reject(err);
           } else {
-            console.log("✅ User inserted successfully with ID:", result.insertId);
-            console.log("Country value in insert:", country);
+            console.log("✅ User inserted with country:", country);
             resolve(result);
           }
         }
       );
     });
-    console.log("===============================================\n");
 
     console.log("Registration successful for user:", username, "with country:", country);
-    console.log("🎉🎉🎉 REGISTRATION COMPLETED SUCCESSFULLY 🎉🎉🎉\n");
     res.redirect("/login");
   } catch (error) {
-    console.error("\n========== REGISTRATION ERROR ==========");
-    console.error("❌ Registration error:", error);
-    console.error("Error name:", error.name);
-    console.error("Error message:", error.message);
-    console.error("Error stack:", error.stack);
-    console.log("========================================\n");
+    console.error("Registration error:", error);
     res.render("register", {
       title: "Register",
       error: "Server error occurred",
