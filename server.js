@@ -367,8 +367,11 @@ app.get("/winners", checkAuth, (req, res) => {
     "connect-src 'self'"
   );
   
-  // Get date parameter from query string, default to yesterday
-  const selectedDate = req.query.date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  // Get date parameter from query string, default to yesterday in Sri Lankan timezone (UTC+5:30)
+  const sriLankaOffset = 5.5 * 60 * 60 * 1000; // UTC+5:30 in milliseconds
+  const nowInSriLanka = new Date(Date.now() + sriLankaOffset); // Current time in Sri Lanka
+  const yesterdayInSriLanka = new Date(nowInSriLanka - 24 * 60 * 60 * 1000); // Yesterday in Sri Lanka
+  const selectedDate = req.query.date || yesterdayInSriLanka.toISOString().split('T')[0];
   
   const query = `
         SELECT 
