@@ -1,11 +1,11 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import cookieParser from "cookie-parser";
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import cookieParser from 'cookie-parser';
 import db from "./db.js";
 import authRoutes, { authenticateToken } from "./auth.js";
 
@@ -20,12 +20,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For parsing form data
 app.use(cookieParser()); // For parsing cookies
 
-// Trust proxy to get real IP addresses
-app.set("trust proxy", true);
-
 // Set up EJS as the view engine
-app.set("view engine", "ejs");
-app.set("views", join(__dirname, "views"));
+app.set('view engine', 'ejs');
+app.set('views', join(__dirname, 'views'));
 
 // Authentication routes
 app.use("/api/auth", authRoutes);
@@ -51,17 +48,17 @@ const checkAuth = (req, res, next) => {
 
 // Login page
 app.get("/login", (req, res) => {
-  res.render("login", {
-    title: "Login",
-    error: null,
+  res.render('login', {
+    title: 'Login',
+    error: null
   });
 });
 
 // Register page
 app.get("/register", (req, res) => {
-  res.render("register", {
-    title: "Register",
-    error: null,
+  res.render('register', {
+    title: 'Register',
+    error: null
   });
 });
 
@@ -70,81 +67,77 @@ app.post("/auth/login", async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.render("login", {
-      title: "Login",
-      error: "Email and password are required",
+    return res.render('login', {
+      title: 'Login',
+      error: 'Email and password are required'
     });
   }
 
   try {
     // Find user by email
-    db.query(
-      "SELECT * FROM users WHERE email = ?",
-      [email],
-      async (err, results) => {
-        if (err) {
-          console.error("Database error:", err);
-          return res.render("login", {
-            title: "Login",
-            error: "Database error occurred",
-          });
-        }
-
-        if (results.length === 0) {
-          return res.render("login", {
-            title: "Login",
-            error: "Invalid email or password",
-          });
-        }
-
-        const user = results[0];
-
-        // Compare password
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-
-        if (!isPasswordValid) {
-          return res.render("login", {
-            title: "Login",
-            error: "Invalid email or password",
-          });
-        }
-
-        // Generate JWT token
-        const token = jwt.sign(
-          {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-          },
-          process.env.JWT_SECRET,
-          { expiresIn: "24h" }
-        );
-
-        // Update last login
-        db.query(
-          "UPDATE users SET last_login = NOW() WHERE id = ?",
-          [user.id],
-          (err) => {
-            if (err) console.error("Failed to update last login:", err);
-          }
-        );
-
-        // Set token in cookie
-        res.cookie("token", token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    db.query("SELECT * FROM users WHERE email = ?", [email], async (err, results) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.render('login', {
+          title: 'Login',
+          error: 'Database error occurred'
         });
-
-        // Redirect to home page
-        res.redirect("/");
       }
-    );
+
+      if (results.length === 0) {
+        return res.render('login', {
+          title: 'Login',
+          error: 'Invalid email or password'
+        });
+      }
+
+      const user = results[0];
+
+      // Compare password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+
+      if (!isPasswordValid) {
+        return res.render('login', {
+          title: 'Login',
+          error: 'Invalid email or password'
+        });
+      }
+
+      // Generate JWT token
+      const token = jwt.sign(
+        {
+          id: user.id,
+          username: user.username,
+          email: user.email
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: "24h" }
+      );
+
+      // Update last login
+      db.query(
+        "UPDATE users SET last_login = NOW() WHERE id = ?",
+        [user.id],
+        (err) => {
+          if (err) console.error("Failed to update last login:", err);
+        }
+      );
+
+      // Set token in cookie
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      });
+
+      // Redirect to home page
+      res.redirect('/');
+    });
   } catch (error) {
     console.error("Login error:", error);
-    res.render("login", {
-      title: "Login",
-      error: "Server error occurred",
+    res.render('login', {
+      title: 'Login',
+      error: 'Server error occurred'
     });
   }
 });
@@ -155,100 +148,93 @@ app.post("/auth/register", async (req, res) => {
 
   // Validation
   if (!username || !email || !password || !confirmPassword) {
-    return res.render("register", {
-      title: "Register",
-      error: "All fields are required",
+    return res.render('register', {
+      title: 'Register',
+      error: 'All fields are required'
     });
   }
 
   if (password !== confirmPassword) {
-    return res.render("register", {
-      title: "Register",
-      error: "Passwords do not match",
+    return res.render('register', {
+      title: 'Register',
+      error: 'Passwords do not match'
     });
   }
 
   if (password.length < 6) {
-    return res.render("register", {
-      title: "Register",
-      error: "Password must be at least 6 characters",
+    return res.render('register', {
+      title: 'Register',
+      error: 'Password must be at least 6 characters'
     });
   }
 
   try {
     // Check if user already exists
-    const existingUsers = await new Promise((resolve, reject) => {
-      db.query(
-        "SELECT * FROM users WHERE email = ? OR username = ?",
-        [email, username],
-        (err, results) => {
-          if (err) reject(err);
-          else resolve(results);
+    db.query(
+      "SELECT * FROM users WHERE email = ? OR username = ?",
+      [email, username],
+      async (err, results) => {
+        if (err) {
+          console.error("Database error:", err);
+          return res.render('register', {
+            title: 'Register',
+            error: 'Database error occurred'
+          });
         }
-      );
-    });
 
-    if (existingUsers.length > 0) {
-      return res.render("register", {
-        title: "Register",
-        error: "User already exists with this email or username",
-      });
-    }
-
-    // Get user's IP address
-    let userIP =
-      req.ip ||
-      req.connection.remoteAddress ||
-      req.socket.remoteAddress ||
-      (req.connection.socket ? req.connection.socket.remoteAddress : null);
-
-    // Initialize country
-    let country = "Unknown";
-
-    // Handle IPv6 localhost (::1) and IPv4 localhost (127.0.0.1)
-    if (
-      userIP === "::1" ||
-      userIP === "127.0.0.1" ||
-      userIP === "::ffff:127.0.0.1"
-    ) {
-      // For local development, set country to Unknown instead of defaulting to USA
-      country = "Unknown";
-    } else {
-      // Get country from IP using free API
-      try {
-        const response = await fetch(`http://ip-api.com/json/${userIP}`);
-        const data = await response.json();
-        if (data.status === "success") {
-          country = data.country;
+        if (results.length > 0) {
+          return res.render('register', {
+            title: 'Register',
+            error: 'User already exists with this email or username'
+          });
         }
-      } catch (error) {
-        console.error("Error fetching country:", error);
-        country = "Unknown";
+
+        // Hash password
+        const saltRounds = 10;
+        const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+        // Insert new user
+        db.query(
+          "INSERT INTO users (username, email, password, created_at) VALUES (?, ?, ?, NOW())",
+          [username, email, hashedPassword],
+          (err, result) => {
+            if (err) {
+              console.error("Database error:", err);
+              return res.render('register', {
+                title: 'Register',
+                error: 'Failed to create user'
+              });
+            }
+
+            // Generate JWT token
+            const token = jwt.sign(
+              {
+                id: result.insertId,
+                username: username,
+                email: email
+              },
+              process.env.JWT_SECRET,
+              { expiresIn: "24h" }
+            );
+
+            // Set token in cookie
+            res.cookie('token', token, {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === 'production',
+              maxAge: 24 * 60 * 60 * 1000 // 24 hours
+            });
+
+            // Redirect to home page
+            res.redirect('/');
+          }
+        );
       }
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Insert new user
-    const result = await new Promise((resolve, reject) => {
-      db.query(
-        "INSERT INTO users (username, email, password, country, created_at) VALUES (?, ?, ?, ?, NOW())",
-        [username, email, hashedPassword, country],
-        (err, result) => {
-          if (err) reject(err);
-          else resolve(result);
-        }
-      );
-    });
-
-    console.log("Registration successful for user:", username);
-    res.redirect("/login");
+    );
   } catch (error) {
     console.error("Registration error:", error);
-    res.render("register", {
-      title: "Register",
-      error: "Server error occurred",
+    res.render('register', {
+      title: 'Register',
+      error: 'Server error occurred'
     });
   }
 });
@@ -256,46 +242,45 @@ app.post("/auth/register", async (req, res) => {
 // Logout route
 app.post("/auth/logout", (req, res) => {
   // Clear the token cookie
-  res.clearCookie("token");
-  res.redirect("/");
+  res.clearCookie('token');
+  res.redirect('/');
 });
 
 // Game route (allows guest access)
 app.get("/game", checkAuth, (req, res) => {
   // Allow guest access if guest=true parameter is present
-  const isGuest = req.query.guest === "true";
+  const isGuest = req.query.guest === 'true';
 
   if (!req.user && !isGuest) {
-    return res.redirect("/login");
+    return res.redirect('/login');
   }
 
   // For guest users, create a guest user object with unique ID
   let user;
   if (isGuest) {
-    const guestId =
-      "GUEST_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
-    user = {
-      id: 0,
-      username: guestId,
-      email: "guest@example.com",
+    const guestId = 'GUEST_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    user = { 
+      id: 0, 
+      username: guestId, 
+      email: 'guest@example.com', 
       isGuest: true,
-      guestId: guestId,
+      guestId: guestId 
     };
   } else {
     user = req.user;
   }
 
-  res.render("game", {
-    title: "Endless Runner Game",
-    user: user,
+  res.render('game', {
+    title: 'Endless Runner Game',
+    user: user
   });
 });
 
 // Test route (main menu)
 app.get("/", checkAuth, (req, res) => {
-  res.render("menu", {
-    title: "Endless Runner Game",
-    user: req.user,
+  res.render('menu', {
+    title: 'Endless Runner Game',
+    user: req.user
   });
 });
 
@@ -312,8 +297,7 @@ app.get("/leaderboard", checkAuth, (req, res) => {
             ranked_sessions.distance_traveled,
             ranked_sessions.game_result,
             ranked_sessions.created_at,
-            ranked_sessions.user_id,
-            ranked_sessions.country
+            ranked_sessions.user_id
      FROM (
        SELECT 
             CASE 
@@ -331,7 +315,6 @@ app.get("/leaderboard", checkAuth, (req, res) => {
             gs.created_at,
             gs.user_id,
             gs.id,
-            u.country,
             ROW_NUMBER() OVER (
               PARTITION BY 
                 CASE 
@@ -350,16 +333,16 @@ app.get("/leaderboard", checkAuth, (req, res) => {
     (err, results) => {
       if (err) {
         console.error("Database error:", err);
-        return res.render("leaderboard", {
-          title: "Game Leaderboard",
+        return res.render('leaderboard', {
+          title: 'Game Leaderboard',
           scores: [],
-          user: req.user,
+          user: req.user
         });
       }
-      res.render("leaderboard", {
-        title: "Game Leaderboard",
+      res.render('leaderboard', {
+        title: 'Game Leaderboard',
         scores: results,
-        user: req.user,
+        user: req.user
       });
     }
   );
@@ -368,21 +351,18 @@ app.get("/leaderboard", checkAuth, (req, res) => {
 // Winners route - Shows top 3 players from selected day (defaults to yesterday)
 app.get("/winners", checkAuth, (req, res) => {
   // Set permissive CSP for winners page to allow Bootstrap, images, and inline scripts
-  res.setHeader(
-    "Content-Security-Policy",
+  res.setHeader('Content-Security-Policy', 
     "default-src 'self'; " +
-      "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " +
-      "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " +
-      "img-src 'self' data: https:; " +
-      "font-src 'self' https://cdn.jsdelivr.net data:; " +
-      "connect-src 'self'"
+    "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " +
+    "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " +
+    "img-src 'self' data: https:; " +
+    "font-src 'self' https://cdn.jsdelivr.net data:; " +
+    "connect-src 'self'"
   );
-
+  
   // Get date parameter from query string, default to yesterday
-  const selectedDate =
-    req.query.date ||
-    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-
+  const selectedDate = req.query.date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  
   const query = `
     SELECT 
             ranked_sessions.username,
@@ -394,8 +374,7 @@ app.get("/winners", checkAuth, (req, res) => {
             ranked_sessions.distance_traveled,
             ranked_sessions.game_result,
             ranked_sessions.created_at,
-            ranked_sessions.user_id,
-            ranked_sessions.country
+            ranked_sessions.user_id
      FROM (
        SELECT 
             CASE 
@@ -413,7 +392,6 @@ app.get("/winners", checkAuth, (req, res) => {
             gs.created_at,
             gs.user_id,
             gs.id,
-            u.country,
             ROW_NUMBER() OVER (
               PARTITION BY 
                 CASE 
@@ -433,29 +411,29 @@ app.get("/winners", checkAuth, (req, res) => {
   db.query(query, [selectedDate], (err, results) => {
     if (err) {
       console.error("Database error:", err);
-      return res.render("winners", {
-        title: "Game Winners",
+      return res.render('winners', {
+        title: 'Game Winners',
         winners: [],
         selectedDate: selectedDate,
         user: req.user,
-        error: "Failed to load winners data",
+        error: 'Failed to load winners data'
       });
     }
-    res.render("winners", {
-      title: "Game Winners",
+    res.render('winners', {
+      title: 'Game Winners',
       winners: results,
       selectedDate: selectedDate,
       user: req.user,
-      error: null,
+      error: null
     });
   });
 });
 
 // Wiki route
 app.get("/wiki", checkAuth, (req, res) => {
-  res.render("wiki", {
-    title: "Game Wiki - Info, Payouts & Terms",
-    user: req.user,
+  res.render('wiki', {
+    title: 'Game Wiki - Info, Payouts & Terms',
+    user: req.user
   });
 });
 
@@ -472,8 +450,7 @@ app.get("/api/scores", (req, res) => {
             ranked_sessions.distance_traveled,
             ranked_sessions.game_result,
             ranked_sessions.created_at,
-            ranked_sessions.user_id,
-            ranked_sessions.country
+            ranked_sessions.user_id
      FROM (
        SELECT 
             CASE 
@@ -491,7 +468,6 @@ app.get("/api/scores", (req, res) => {
             gs.created_at,
             gs.user_id,
             gs.id,
-            u.country,
             ROW_NUMBER() OVER (
               PARTITION BY 
                 CASE 
@@ -514,7 +490,7 @@ app.get("/api/scores", (req, res) => {
       }
       res.json({
         message: "Scores retrieved successfully",
-        scores: results,
+        scores: results
       });
     }
   );
@@ -532,7 +508,7 @@ app.get("/api/scores/my", authenticateToken, (req, res) => {
       }
       res.json({
         message: "Your scores retrieved successfully",
-        scores: results,
+        scores: results
       });
     }
   );
@@ -542,9 +518,9 @@ app.get("/api/scores/my", authenticateToken, (req, res) => {
 app.post("/api/scores", authenticateToken, (req, res) => {
   console.log("Score saving request received:", req.body);
   console.log("User:", req.user);
-
+  
   const { score, level = 1, distance = 0, game_type = "default" } = req.body;
-
+  
   if (!score || score < 0) {
     console.log("Invalid score:", score);
     return res.status(400).json({ message: "Valid score is required" });
@@ -559,9 +535,9 @@ app.post("/api/scores", authenticateToken, (req, res) => {
         return res.status(500).json({ message: "Failed to save score" });
       }
       console.log("Score saved successfully:", result.insertId);
-      res.json({
+      res.json({ 
         message: "Score saved successfully!",
-        scoreId: result.insertId,
+        scoreId: result.insertId
       });
     }
   );
@@ -582,7 +558,7 @@ app.post("/api/sessions", (req, res) => {
   }
 
   console.log("Session saving request received:", req.body);
-  console.log("Authenticated user:", user || "None");
+  console.log("Authenticated user:", user || 'None');
 
   // Handle guest users - get guest info from request body
   let userId, username;
@@ -593,13 +569,8 @@ app.post("/api/sessions", (req, res) => {
     // For guest users, use NULL for user_id and generate unique guest name
     const { guestId } = req.body;
     userId = null; // Use NULL to avoid foreign key constraint issues
-    username =
-      guestId || `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-    console.log("Guest info from body:", {
-      guestId,
-      finalUserId: userId,
-      finalUsername: username,
-    });
+    username = guestId || `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    console.log("Guest info from body:", { guestId, finalUserId: userId, finalUsername: username });
   }
 
   console.log("Final userId:", userId, "username:", username);
@@ -612,7 +583,7 @@ app.post("/api/sessions", (req, res) => {
     obstaclesHit,
     powerupsCollected,
     distanceTraveled,
-    gameResult,
+    gameResult
   } = req.body;
 
   if (!sessionId || !durationSeconds || finalScore === undefined) {
@@ -622,50 +593,33 @@ app.post("/api/sessions", (req, res) => {
 
   // Ensure all values are properly set
   const dbUserId = userId; // Allow NULL for guests
-  const dbUsername = username || "Guest";
+  const dbUsername = username || 'Guest';
   const dbCoinsCollected = coinsCollected || 0;
   const dbObstaclesHit = obstaclesHit || 0;
   const dbPowerupsCollected = powerupsCollected || 0;
   const dbDistanceTraveled = distanceTraveled || 0;
-  const dbGameResult = gameResult || "unknown";
+  const dbGameResult = gameResult || 'unknown';
 
   console.log("Inserting session with values:", {
-    userId: dbUserId,
-    sessionId,
-    durationSeconds,
-    finalScore,
-    coinsCollected: dbCoinsCollected,
-    obstaclesHit: dbObstaclesHit,
-    powerupsCollected: dbPowerupsCollected,
-    distanceTraveled: dbDistanceTraveled,
-    gameResult: dbGameResult,
+    userId: dbUserId, sessionId, durationSeconds, finalScore, 
+    coinsCollected: dbCoinsCollected, obstaclesHit: dbObstaclesHit, 
+    powerupsCollected: dbPowerupsCollected, distanceTraveled: dbDistanceTraveled, 
+    gameResult: dbGameResult
   });
 
   db.query(
     "INSERT INTO game_sessions (user_id, session_id, duration_seconds, final_score, coins_collected, obstacles_hit, powerups_collected, distance_traveled, game_result) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    [
-      dbUserId,
-      sessionId,
-      durationSeconds,
-      finalScore,
-      dbCoinsCollected,
-      dbObstaclesHit,
-      dbPowerupsCollected,
-      dbDistanceTraveled,
-      dbGameResult,
-    ],
+    [dbUserId, sessionId, durationSeconds, finalScore, dbCoinsCollected, dbObstaclesHit, dbPowerupsCollected, dbDistanceTraveled, dbGameResult],
     (err, result) => {
       if (err) {
         console.error("Database error saving session:", err);
         console.error("Error details:", err.message);
-        return res
-          .status(500)
-          .json({ message: "Failed to save session: " + err.message });
+        return res.status(500).json({ message: "Failed to save session: " + err.message });
       }
       console.log("Session saved successfully with ID:", result.insertId);
       res.json({
         message: "Session saved successfully!",
-        sessionId: result.insertId,
+        sessionId: result.insertId
       });
     }
   );
@@ -674,6 +628,6 @@ app.post("/api/sessions", (req, res) => {
 const PORT = process.env.PORT || 5000;
 
 // Serve static files
-app.use(express.static("."));
+app.use(express.static('.'));
 
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

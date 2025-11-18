@@ -205,7 +205,6 @@
             <thead>
                 <tr>
                     <th>Username</th>
-                    <th>Country</th>
                     <th>Score</th>
                     <th>Time</th>
                     <th>Coins</th>
@@ -219,7 +218,6 @@
                     <% winners.filter(winner => !winner.username.startsWith('Guest')).forEach(function(winner) { %>
                         <tr>
                             <td><%= winner.username %></td>
-                            <td><%= winner.country || 'Unknown' %></td>
                             <td style="color: red; font-weight: bold;">Score: <%= winner.score %></td>
                             <td>⏱️ <%= Math.floor(winner.duration_seconds / 60) %>:<%= (winner.duration_seconds % 60).toString().padStart(2, '0') %></td>
                             <td>🪙 <%= winner.coins_collected %></td>
@@ -230,7 +228,7 @@
                     <% }); %>
                 <% } else { %>
                     <tr>
-                        <td colspan="8" style="text-align: center; color: #666;">No winners found for <%= selectedDate %></td>
+                        <td colspan="7" style="text-align: center; color: #666;">No winners found for <%= selectedDate %></td>
                     </tr>
                 <% } %>
             </tbody>

@@ -47,7 +47,6 @@ const createTables = () => {
       username VARCHAR(50) UNIQUE NOT NULL,
       email VARCHAR(100) UNIQUE NOT NULL,
       password VARCHAR(255) NOT NULL,
-      country VARCHAR(100) DEFAULT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       last_login TIMESTAMP NULL,
       is_active BOOLEAN DEFAULT TRUE,
@@ -125,17 +124,6 @@ const createTables = () => {
       }
       checkComplete();
     });
-
-    // Add country column to existing users table if it doesn't exist
-    setTimeout(() => {
-      db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100) DEFAULT NULL", (err) => {
-        if (err) {
-          console.error("Error adding country column:", err);
-        } else {
-          console.log("✅ Country column added to users table");
-        }
-      });
-    }, 200);
   }, 100);
 };// Connect and create tables
 db.connect((err) => {
