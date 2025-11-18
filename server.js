@@ -280,10 +280,26 @@ app.get("/game", checkAuth, (req, res) => {
 
 // Test route (main menu)
 app.get("/", checkAuth, (req, res) => {
-  res.render('menu', {
-    title: 'Endless Runner Game',
-    user: req.user
-  });
+  // Get active players count (ongoing sessions where ended_at IS NULL)
+  db.query(
+    "SELECT COUNT(*) as active_count FROM game_sessions WHERE ended_at IS NULL",
+    (err, results) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.render('menu', {
+          title: 'Endless Runner Game',
+          user: req.user,
+          activePlayers: 0
+        });
+      }
+      
+      res.render('menu', {
+        title: 'Endless Runner Game',
+        user: req.user,
+        activePlayers: results[0].active_count
+      });
+    }
+  );
 });
 
 // Leaderboard route - Shows each user's highest score from last 24 hours
@@ -739,6 +755,115 @@ app.post("/api/sessions", (req, res) => {
       }
     );
   }
+});
+
+// Start a new session (allows guest sessions)
+app.post("/api/sessions/start", (req, res) => {
+  // Check if user is authenticated or if it's a guest session
+  const token = req.cookies.token;
+  let user = null;
+
+  if (token) {
+    try {
+      user = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      // Token invalid, treat as guest
+    }
+  }
+
+  console.log("Session start request received for:", user ? user.username : 'Guest');
+
+  // Handle guest users - get guest info from request body
+  let userId, username, guestUsername;
+  if (user) {
+    userId = user.id;
+    username = user.username;
+    guestUsername = null;
+  } else {
+    // For guest users, use NULL for user_id and store guest ID
+    const { guestId } = req.body;
+    userId = null; // Use NULL to avoid foreign key constraint issues
+    guestUsername = guestId || `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    username = guestUsername; // For display purposes
+    console.log("Starting guest session with ID:", guestUsername);
+  }
+
+  const { sessionId } = req.body;
+
+  if (!sessionId) {
+    console.log("Invalid session start data:", req.body);
+    return res.status(400).json({ message: "Session ID is required" });
+  }
+
+  // Ensure all values are properly set
+  const dbUserId = userId; // Allow NULL for guests
+  const dbUsername = username || 'Guest';
+  const dbGuestUsername = guestUsername; // Store guest username for persistence
+
+  console.log("Starting session with values:", {
+    userId: dbUserId, guestUsername: dbGuestUsername, sessionId
+  });
+
+  db.query(
+    "INSERT INTO game_sessions (user_id, guest_username, session_id, is_active, started_at) VALUES (?, ?, ?, TRUE, NOW())",
+    [dbUserId, dbGuestUsername, sessionId],
+    (err, result) => {
+      if (err) {
+        console.error("Database error starting session:", err);
+        console.error("Error details:", err.message);
+        return res.status(500).json({ message: "Failed to start session: " + err.message });
+      }
+      console.log("Session started successfully with ID:", result.insertId);
+      res.json({
+        message: "Session started successfully!",
+        sessionId: result.insertId
+      });
+    }
+  );
+});
+
+// Update session with final data
+app.put("/api/sessions/:sessionId", (req, res) => {
+  const { sessionId } = req.params;
+  const {
+    durationSeconds,
+    finalScore,
+    coinsCollected,
+    obstaclesHit,
+    powerupsCollected,
+    distanceTraveled,
+    gameResult
+  } = req.body;
+
+  if (!sessionId || !durationSeconds || finalScore === undefined) {
+    console.log("Invalid session update data:", req.body);
+    return res.status(400).json({ message: "Valid session data is required" });
+  }
+
+  // Ensure all values are properly set
+  const dbCoinsCollected = coinsCollected || 0;
+  const dbObstaclesHit = obstaclesHit || 0;
+  const dbPowerupsCollected = powerupsCollected || 0;
+  const dbDistanceTraveled = distanceTraveled || 0;
+  const dbGameResult = gameResult || 'unknown';
+
+  console.log("Updating session:", sessionId, "with final data");
+
+  db.query(
+    "UPDATE game_sessions SET duration_seconds = ?, final_score = ?, coins_collected = ?, obstacles_hit = ?, powerups_collected = ?, distance_traveled = ?, game_result = ?, is_active = FALSE, ended_at = NOW() WHERE session_id = ?",
+    [durationSeconds, finalScore, dbCoinsCollected, dbObstaclesHit, dbPowerupsCollected, dbDistanceTraveled, dbGameResult, sessionId],
+    (err, result) => {
+      if (err) {
+        console.error("Database error updating session:", err);
+        console.error("Error details:", err.message);
+        return res.status(500).json({ message: "Failed to update session: " + err.message });
+      }
+      console.log("Session updated successfully");
+      res.json({
+        message: "Session updated successfully!"
+      });
+    }
+  );
 });
 
 const PORT = process.env.PORT || 5000;

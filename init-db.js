@@ -80,19 +80,24 @@ const createTables = () => {
       user_id INT NULL,
       guest_username VARCHAR(255) NULL,
       session_id VARCHAR(255) NOT NULL,
-      duration_seconds INT NOT NULL,
-      final_score INT NOT NULL,
+      game_type VARCHAR(50) DEFAULT 'default',
+      started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      ended_at TIMESTAMP NULL,
+      is_active BOOLEAN DEFAULT TRUE,
+      duration_seconds INT DEFAULT 0,
+      final_score INT DEFAULT 0,
       coins_collected INT DEFAULT 0,
       obstacles_hit INT DEFAULT 0,
       powerups_collected INT DEFAULT 0,
       distance_traveled INT DEFAULT 0,
-      game_result ENUM('died', 'quit', 'completed') DEFAULT 'died',
+      game_result ENUM('completed', 'died', 'quit', 'timeout') DEFAULT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      INDEX idx_user_id (user_id),
+      INDEX idx_user_session (user_id, is_active),
       INDEX idx_guest_username (guest_username),
       INDEX idx_session_id (session_id),
-      INDEX idx_created_at (created_at DESC)
+      INDEX idx_started_at (started_at),
+      INDEX idx_final_score (final_score DESC)
     )
   `;
 

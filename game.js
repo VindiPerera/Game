@@ -302,6 +302,41 @@ class EndlessRunner {
     this.spawnMonster(); // Spawn the single monster
     this.startBackgroundMusic(); // Start background music
     this.startSession(); // Start tracking session
+
+    // Start session on server
+    const sessionData = {
+      sessionId: this.sessionId
+    };
+
+    // Add guest user information if playing as guest
+    if (window.gameUser && window.gameUser.isGuest) {
+      let guestId = window.gameUser.guestId || localStorage.getItem('guestId');
+      if (!guestId) {
+        guestId = 'Guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('guestId', guestId);
+      }
+      sessionData.guestId = guestId;
+    }
+
+    fetch('/api/sessions/start', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify(sessionData)
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.message === "Session started successfully!") {
+        console.log("Session started successfully!");
+      } else {
+        console.error("Failed to start session:", data.message);
+      }
+    })
+    .catch(error => {
+      console.error("Error starting session:", error);
+    });
   }
 
   restartGame() {
@@ -2014,8 +2049,8 @@ class EndlessRunner {
     }
 
     // Send session data to server
-    fetch('/api/sessions', {
-      method: 'POST',
+    fetch(`/api/sessions/${this.sessionId}`, {
+      method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
