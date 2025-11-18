@@ -77,6 +77,7 @@ const createTables = () => {
     CREATE TABLE game_sessions (
       id INT AUTO_INCREMENT PRIMARY KEY,
       user_id INT NULL,
+      guest_username VARCHAR(255) NULL,
       session_id VARCHAR(255) NOT NULL,
       duration_seconds INT NOT NULL,
       final_score INT NOT NULL,
@@ -88,6 +89,7 @@ const createTables = () => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       INDEX idx_user_id (user_id),
+      INDEX idx_guest_username (guest_username),
       INDEX idx_session_id (session_id),
       INDEX idx_created_at (created_at DESC)
     )

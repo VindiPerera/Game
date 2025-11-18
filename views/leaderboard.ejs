@@ -178,7 +178,7 @@
             <% } else { %>
                 <div class="nav-bottom">
                     <a href="/" class="nav-button menu-btn">🏠 Main Menu</a>
-                    <a href="/game?guest=true" class="nav-button guest-btn">🎮 Play as Guest</a>
+                    <a href="#" id="guestPlayBtn" class="nav-button guest-btn">🎮 Play as Guest</a>
                 </div>
             <% } %>
         </nav>
@@ -204,5 +204,24 @@
             <p>No game sessions available yet. Be the first to play!</p>
         <% } %>
     </div>
+
+    <script>
+        // Guest ID management
+        function getOrCreateGuestId() {
+            let guestId = localStorage.getItem('guestId');
+            if (!guestId) {
+                guestId = 'Guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('guestId', guestId);
+            }
+            return guestId;
+        }
+
+        // Handle guest play button
+        document.getElementById('guestPlayBtn')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            const guestId = getOrCreateGuestId();
+            window.location.href = `/game?guest=true&guestId=${encodeURIComponent(guestId)}`;
+        });
+    </script>
 </body>
 </html>

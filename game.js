@@ -1988,8 +1988,21 @@ class EndlessRunner {
 
     // Add guest user information if playing as guest
     if (window.gameUser && window.gameUser.isGuest) {
-      sessionData.guestId = window.gameUser.username;
-      // Don't send guestUserId - server will use null for guests
+      // Use the persistent guest ID from localStorage or the one passed from server
+      let guestId = window.gameUser.guestId || localStorage.getItem('guestId');
+      
+      // If no guest ID exists, create one and store it
+      if (!guestId) {
+        guestId = 'Guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('guestId', guestId);
+      }
+      
+      sessionData.guestId = guestId;
+      console.log("=== GUEST SESSION DEBUG ===");
+      console.log("gameUser:", window.gameUser);
+      console.log("Using persistent guest ID:", guestId);
+      console.log("Session data being sent:", sessionData);
+      console.log("=========================");
     }
 
     // Send session data to server
