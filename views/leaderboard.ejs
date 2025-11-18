@@ -118,6 +118,11 @@
             color: #2c3e50;
             flex: 1;
         }
+        .country {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
         .score-details {
             display: flex;
             gap: 15px;
@@ -188,7 +193,12 @@
         <% if (scores && scores.length > 0) { %>
             <% scores.forEach(score => { %>
                 <div class="score-item">
-                    <div class="username"><%= score.username %></div>
+                    <div class="username">
+                        <%= score.username %>
+                        <% if (score.country) { %>
+                            <span class="country">(<%= score.country %>)</span>
+                        <% } %>
+                    </div>
                     <div class="score-details">
                         <span class="score">Coins: <%= score.score %></span>
                         <span class="duration">⏱️ <%= Math.floor(score.duration_seconds / 60) %>:<%= (score.duration_seconds % 60).toString().padStart(2, '0') %></span>
