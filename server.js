@@ -198,34 +198,78 @@ app.post("/auth/register", async (req, res) => {
     // Get user's IP address
     let userIP =
       req.ip ||
+      req.headers['x-forwarded-for']?.split(',')[0] || // Get first IP if multiple
       req.connection.remoteAddress ||
       req.socket.remoteAddress ||
       (req.connection.socket ? req.connection.socket.remoteAddress : null);
 
+    console.log("Raw IP detected:", userIP);
+
+    // Clean IPv6-mapped IPv4 addresses (::ffff:192.168.1.1 -> 192.168.1.1)
+    if (userIP && userIP.startsWith("::ffff:")) {
+      userIP = userIP.substring(7);
+    }
+
+    console.log("Cleaned IP:", userIP);
+
     // Initialize country
     let country = "Unknown";
 
-    // Handle IPv6 localhost (::1) and IPv4 localhost (127.0.0.1)
-    if (
-      userIP === "::1" ||
-      userIP === "127.0.0.1" ||
-      userIP === "::ffff:127.0.0.1"
-    ) {
-      // For local development, set country to Unknown instead of defaulting to USA
+    // Check if it's a local/private IP
+    const isLocalIP = !userIP || 
+                      userIP === "::1" ||
+                      userIP === "127.0.0.1" ||
+                      userIP.startsWith("192.168.") ||
+                      userIP.startsWith("10.") ||
+                      userIP.startsWith("172.16.") ||
+                      userIP.startsWith("172.17.") ||
+                      userIP.startsWith("172.18.") ||
+                      userIP.startsWith("172.19.") ||
+                      userIP.startsWith("172.20.") ||
+                      userIP.startsWith("172.21.") ||
+                      userIP.startsWith("172.22.") ||
+                      userIP.startsWith("172.23.") ||
+                      userIP.startsWith("172.24.") ||
+                      userIP.startsWith("172.25.") ||
+                      userIP.startsWith("172.26.") ||
+                      userIP.startsWith("172.27.") ||
+                      userIP.startsWith("172.28.") ||
+                      userIP.startsWith("172.29.") ||
+                      userIP.startsWith("172.30.") ||
+                      userIP.startsWith("172.31.");
+
+    if (isLocalIP) {
+      console.log("Local/Private IP detected, setting country to Unknown");
       country = "Unknown";
     } else {
-      // Get country from IP using free API
+      // Get country from IP using API
       try {
-        const response = await fetch(`http://ip-api.com/json/${userIP}`);
-        const data = await response.json();
-        if (data.status === "success") {
-          country = data.country;
+        console.log("Fetching country for IP:", userIP);
+        const response = await fetch(`http://ip-api.com/json/${userIP}`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (!response.ok) {
+          console.error("IP-API HTTP error:", response.status, response.statusText);
+        } else {
+          const data = await response.json();
+          console.log("IP-API full response:", JSON.stringify(data));
+          
+          if (data.status === "success") {
+            country = data.country;
+            console.log("✅ Country successfully detected:", country);
+          } else {
+            console.log("❌ IP-API returned failure:", data.message);
+          }
         }
       } catch (error) {
-        console.error("Error fetching country:", error);
+        console.error("❌ Error fetching country:", error.message);
         country = "Unknown";
       }
     }
+
+    console.log("📍 Final country value for user:", country);
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -236,13 +280,18 @@ app.post("/auth/register", async (req, res) => {
         "INSERT INTO users (username, email, password, country, created_at) VALUES (?, ?, ?, ?, NOW())",
         [username, email, hashedPassword, country],
         (err, result) => {
-          if (err) reject(err);
-          else resolve(result);
+          if (err) {
+            console.error("Database insert error:", err);
+            reject(err);
+          } else {
+            console.log("✅ User inserted with country:", country);
+            resolve(result);
+          }
         }
       );
     });
 
-    console.log("Registration successful for user:", username);
+    console.log("Registration successful for user:", username, "with country:", country);
     res.redirect("/login");
   } catch (error) {
     console.error("Registration error:", error);
@@ -286,21 +335,23 @@ app.get("/game", checkAuth, (req, res) => {
   }
 
   res.render("game", {
-    title: "Endless Runner Game",
+    title: "Endless Runner - Play",
     user: user,
   });
 });
 
-// Test route (main menu)
+// Home route
 app.get("/", checkAuth, (req, res) => {
-  res.render("menu", {
+  res.render("index", {
     title: "Endless Runner Game",
     user: req.user,
   });
 });
 
-// Leaderboard route - Shows each user's highest score from last 24 hours
+// Leaderboard route
 app.get("/leaderboard", checkAuth, (req, res) => {
+  // Query to get highest score per user from last 24 hours
+  // Using game_sessions table to get all players including guests
   db.query(
     `SELECT 
             ranked_sessions.username,
@@ -331,7 +382,7 @@ app.get("/leaderboard", checkAuth, (req, res) => {
             gs.created_at,
             gs.user_id,
             gs.id,
-            u.country,
+            COALESCE(u.country, 'Unknown') as country,
             ROW_NUMBER() OVER (
               PARTITION BY 
                 CASE 
@@ -346,45 +397,34 @@ app.get("/leaderboard", checkAuth, (req, res) => {
      ) ranked_sessions
      WHERE ranked_sessions.rn = 1
      ORDER BY ranked_sessions.score DESC 
-     LIMIT 20`,
+     LIMIT 50`,
     (err, results) => {
       if (err) {
         console.error("Database error:", err);
         return res.render("leaderboard", {
-          title: "Game Leaderboard",
+          title: "Leaderboard",
           scores: [],
           user: req.user,
+          error: "Failed to load leaderboard",
         });
       }
       res.render("leaderboard", {
-        title: "Game Leaderboard",
+        title: "Leaderboard",
         scores: results,
         user: req.user,
+        error: null,
       });
     }
   );
 });
 
-// Winners route - Shows top 3 players from selected day (defaults to yesterday)
+// Winners route - shows top 3 winners for a selected date
 app.get("/winners", checkAuth, (req, res) => {
-  // Set permissive CSP for winners page to allow Bootstrap, images, and inline scripts
-  res.setHeader(
-    "Content-Security-Policy",
-    "default-src 'self'; " +
-      "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " +
-      "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; " +
-      "img-src 'self' data: https:; " +
-      "font-src 'self' https://cdn.jsdelivr.net data:; " +
-      "connect-src 'self'"
-  );
+  // Get date from query parameter or use today
+  const selectedDate = req.query.date || new Date().toISOString().split("T")[0];
 
-  // Get date parameter from query string, default to yesterday
-  const selectedDate =
-    req.query.date ||
-    new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-
-  const query = `
-    SELECT 
+  // Query to get top 3 scores for the selected date
+  const query = `SELECT 
             ranked_sessions.username,
             ranked_sessions.score,
             ranked_sessions.duration_seconds,
@@ -413,7 +453,7 @@ app.get("/winners", checkAuth, (req, res) => {
             gs.created_at,
             gs.user_id,
             gs.id,
-            u.country,
+            COALESCE(u.country, 'Unknown') as country,
             ROW_NUMBER() OVER (
               PARTITION BY 
                 CASE 
@@ -491,7 +531,7 @@ app.get("/api/scores", (req, res) => {
             gs.created_at,
             gs.user_id,
             gs.id,
-            u.country,
+            COALESCE(u.country, 'Unknown') as country,
             ROW_NUMBER() OVER (
               PARTITION BY 
                 CASE 
@@ -568,7 +608,7 @@ app.post("/api/scores", authenticateToken, (req, res) => {
 });
 
 // Add a new session (allows guest sessions)
-app.post("/api/sessions", (req, res) => {
+app.post("/api/sessions", async (req, res) => {
   // Check if user is authenticated or if it's a guest session
   const token = req.cookies.token;
   let user = null;
