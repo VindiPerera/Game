@@ -195,10 +195,12 @@ app.post("/auth/register", async (req, res) => {
       });
     }
 
-    // Get user's IP address
+    // Get user's IP address (improved for hosted environments)
     let userIP =
+      req.headers['x-real-ip'] || // Nginx
+      req.headers['cf-connecting-ip'] || // Cloudflare
+      req.headers['x-forwarded-for']?.split(',')[0].trim() || // Load balancers
       req.ip ||
-      req.headers['x-forwarded-for']?.split(',')[0] || // Get first IP if multiple
       req.connection.remoteAddress ||
       req.socket.remoteAddress ||
       (req.connection.socket ? req.connection.socket.remoteAddress : null);
@@ -221,55 +223,65 @@ app.post("/auth/register", async (req, res) => {
                       userIP === "127.0.0.1" ||
                       userIP.startsWith("192.168.") ||
                       userIP.startsWith("10.") ||
-                      userIP.startsWith("172.16.") ||
-                      userIP.startsWith("172.17.") ||
-                      userIP.startsWith("172.18.") ||
-                      userIP.startsWith("172.19.") ||
-                      userIP.startsWith("172.20.") ||
-                      userIP.startsWith("172.21.") ||
-                      userIP.startsWith("172.22.") ||
-                      userIP.startsWith("172.23.") ||
-                      userIP.startsWith("172.24.") ||
-                      userIP.startsWith("172.25.") ||
-                      userIP.startsWith("172.26.") ||
-                      userIP.startsWith("172.27.") ||
-                      userIP.startsWith("172.28.") ||
-                      userIP.startsWith("172.29.") ||
-                      userIP.startsWith("172.30.") ||
-                      userIP.startsWith("172.31.");
+                      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(userIP);
 
     if (isLocalIP) {
-      console.log("Local/Private IP detected, setting country to Unknown");
-      country = "Unknown";
+      console.log("Local/Private IP detected - cannot register from local network");
+      return res.render("register", {
+        title: "Register",
+        error: "Registration is not available from local networks. Please use a public internet connection.",
+      });
     } else {
-      // Get country from IP using API
+      // Get country from IP using API with timeout
       try {
         console.log("Fetching country for IP:", userIP);
-        const response = await fetch(`http://ip-api.com/json/${userIP}`, {
+        
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
+        const response = await fetch(`http://ip-api.com/json/${userIP}?fields=status,message,country`, {
           method: 'GET',
-          headers: { 'Accept': 'application/json' }
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal
         });
+        
+        clearTimeout(timeout);
         
         if (!response.ok) {
           console.error("IP-API HTTP error:", response.status, response.statusText);
+          throw new Error(`HTTP error ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log("IP-API full response:", JSON.stringify(data));
+        
+        if (data.status === "success" && data.country) {
+          country = data.country;
+          console.log("✅ Country successfully detected:", country);
         } else {
-          const data = await response.json();
-          console.log("IP-API full response:", JSON.stringify(data));
-          
-          if (data.status === "success") {
-            country = data.country;
-            console.log("✅ Country successfully detected:", country);
-          } else {
-            console.log("❌ IP-API returned failure:", data.message);
-          }
+          console.log("❌ IP-API returned failure:", data.message || "Unknown error");
+          throw new Error(data.message || "Country detection failed");
         }
       } catch (error) {
         console.error("❌ Error fetching country:", error.message);
-        country = "Unknown";
+        // Don't allow registration if country cannot be determined
+        return res.render("register", {
+          title: "Register",
+          error: "Unable to verify your location. Please try again later or contact support.",
+        });
       }
     }
 
     console.log("📍 Final country value for user:", country);
+
+    // Final validation - ensure country is not null or empty
+    if (!country || country === "Unknown") {
+      console.error("❌ Registration blocked - country could not be determined");
+      return res.render("register", {
+        title: "Register",
+        error: "Unable to verify your location. Please try again later.",
+      });
+    }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
