@@ -9,6 +9,7 @@ import cookieParser from 'cookie-parser';
 import fs from 'fs';
 import db from "./db.js";
 import authRoutes, { authenticateToken } from "./auth.js";
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -145,7 +146,7 @@ app.post("/auth/login", async (req, res) => {
 
 // Handle register form submission
 app.post("/auth/register", async (req, res) => {
-  const { username, email, password, confirmPassword, country } = req.body;
+  const { username, email, password, confirmPassword } = req.body;
 
   // Validation
   if (!username || !email || !password || !confirmPassword) {
@@ -190,6 +191,53 @@ app.post("/auth/register", async (req, res) => {
           });
         }
 
+        // Get country from IP address
+        let country = null;
+        try {
+          // Get client IP, handling proxy scenarios for production
+          let clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                        req.headers['x-real-ip'] ||
+                        req.headers['cf-connecting-ip'] || // Cloudflare
+                        req.ip ||
+                        req.connection.remoteAddress ||
+                        req.socket.remoteAddress;
+
+          // Clean up IPv4-mapped IPv6 addresses
+          if (clientIP && clientIP.startsWith('::ffff:')) {
+            clientIP = clientIP.substring(7);
+          }
+
+          // Skip localhost/private IPs in production
+          const isLocalOrPrivate = !clientIP ||
+                                  clientIP === '127.0.0.1' ||
+                                  clientIP === '::1' ||
+                                  clientIP.startsWith('10.') ||
+                                  clientIP.startsWith('172.') ||
+                                  clientIP.startsWith('192.168.') ||
+                                  clientIP.startsWith('169.254.');
+
+          if (!isLocalOrPrivate && clientIP) {
+            const response = await axios.get(`https://freeipapi.com/api/json/${clientIP}`, {
+              timeout: 5000, // 5 second timeout
+              headers: {
+                'User-Agent': 'GameServer/1.0'
+              }
+            });
+            country = response.data?.countryName || null;
+
+            // Log only in development
+            if (process.env.NODE_ENV !== 'production') {
+              console.log(`Detected country for IP ${clientIP}: ${country}`);
+            }
+          }
+        } catch (error) {
+          // Log error only in development
+          if (process.env.NODE_ENV !== 'production') {
+            console.error('Error fetching country from IP:', error.message);
+          }
+          // country remains null
+        }
+
         // Hash password
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
@@ -197,7 +245,7 @@ app.post("/auth/register", async (req, res) => {
         // Insert new user
         db.query(
           "INSERT INTO users (username, email, password, country, created_at) VALUES (?, ?, ?, ?, NOW())",
-          [username, email, hashedPassword, country && country.trim() ? country.trim() : null],
+          [username, email, hashedPassword, country],
           (err, result) => {
             if (err) {
               console.error("Database error:", err);
