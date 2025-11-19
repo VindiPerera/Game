@@ -1702,7 +1702,8 @@ class EndlessRunner {
       if (!coin.collected && this.isColliding(this.player, coin)) {
         coin.collected = true;
         const coinValue = 1; // 1 point per coin (score equals coins collected)
-        this.score += coinValue; // Score equals number of coins collected
+        const multiplier = this.scoreMultiplier ? 2 : 1;
+        this.score += coinValue * multiplier; // Score equals number of coins collected, doubled during power-up
         this.sessionStats.coinsCollected++; // Track coins collected in session
         this.updateScore(); // Update display and check for difficulty increase
         this.createCoinParticles(
