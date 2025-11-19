@@ -9,6 +9,8 @@ import cookieParser from 'cookie-parser';
 import fs from 'fs';
 import db from "./db.js";
 import authRoutes, { authenticateToken } from "./auth.js";
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -516,7 +518,21 @@ app.get("/wiki", checkAuth, (req, res) => {
   });
 });
 
-// Get all scores (public) - Shows each user's highest score from last 24 hours
+// Get active users
+app.get("/api/active-users", (req, res) => {
+  const users = Array.from(activeUsers.values()).map(user => ({
+    username: user.username,
+    isGuest: user.isGuest,
+    connectedAt: user.connectedAt
+  }));
+  res.json({
+    message: "Active users retrieved successfully",
+    activeUsers: users,
+    count: users.length
+  });
+});
+
+// Get all scores (top scores from last 24 hours)
 app.get("/api/scores", (req, res) => {
   // First get guest mapping
   db.query(
@@ -606,7 +622,7 @@ app.get("/api/scores", (req, res) => {
       );
     }
   );
-});// Get user's scores (protected)
+});
 app.get("/api/scores/my", authenticateToken, (req, res) => {
   db.query(
     "SELECT * FROM scores WHERE user_id = ? ORDER BY score DESC",
@@ -737,7 +753,41 @@ app.post("/api/sessions", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
+// Create HTTP server
+const server = createServer(app);
+
+// Initialize Socket.IO
+const io = new Server(server);
+
+// Track active users
+const activeUsers = new Map(); // socket.id -> { id, username, isGuest }
+
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  // When user joins the game
+  socket.on('join-game', (userData) => {
+    activeUsers.set(socket.id, {
+      id: userData.id || 0,
+      username: userData.username,
+      isGuest: userData.isGuest || false,
+      connectedAt: new Date()
+    });
+    console.log('User joined game:', userData.username);
+    // Broadcast updated active users count
+    io.emit('active-users-update', Array.from(activeUsers.values()));
+  });
+
+  // When user disconnects
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+    activeUsers.delete(socket.id);
+    // Broadcast updated active users count
+    io.emit('active-users-update', Array.from(activeUsers.values()));
+  });
+});
+
 // Serve static files
 app.use(express.static('.'));
 
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

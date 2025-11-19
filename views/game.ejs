@@ -8,6 +8,7 @@
         <%= title %>
     </title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         body {
             margin: 0;
@@ -36,8 +37,8 @@
     </style>
 </head>
 
-<body class="bg-gradient-to-b from-sky-300 to-green-300 min-h-screen overflow-hidden"
-    data-user="<%- JSON.stringify(user || {}).replace(/" /g, '&quot;' ) %>">
+    <body class="bg-gradient-to-b from-sky-300 to-green-300 min-h-screen overflow-hidden"
+    data-user="<%- JSON.stringify(user || {}).replace(/"/g, '&quot;') %>">
     <!-- Back to Menu Link -->
     <a href="/" class="back-link" id="backLink">← Back to Menu</a>
 
@@ -150,7 +151,7 @@
     <script type="text/javascript">
         // Pass user data to client-side JavaScript
         try {
-            const userData = document.body.getAttribute('data-user');
+            const userData = document.body.getAttribute('data-user').replace(/&quot;/g, '"');
             window.gameUser = userData ? JSON.parse(userData) : {};
 
             // For guest users, ensure persistent guest ID
@@ -179,6 +180,22 @@
         } catch (e) {
             window.gameUser = {};
         }
+
+        // Socket.IO connection for active users tracking
+        const socket = io();
+
+        // Join the game when page loads
+        socket.emit('join-game', {
+            id: window.gameUser.id,
+            username: window.gameUser.username || window.gameUser.guestId,
+            isGuest: window.gameUser.isGuest
+        });
+
+        // Listen for active users updates
+        socket.on('active-users-update', (users) => {
+            console.log('Active users updated:', users);
+            // You can update UI here if needed
+        });
     </script>
     <script src="/game.js"></script>
 </body>

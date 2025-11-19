@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><%= title %></title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -28,6 +29,7 @@
             flex-direction: column;
             gap: 20px;
             align-items: center;
+            margin-top: 20px;
         }
         .menu-button {
             padding: 15px 30px;
@@ -107,6 +109,11 @@
             <div class="welcome-user">Welcome back, <%= user.username %>!</div>
         <% } %>
 
+        <div id="activeUsers" class="mb-6 p-4 bg-gray-100 rounded-lg">
+            <h3 class="text-lg font-semibold mb-2 text-green-600">Active Players</h3>
+            <div id="activeUsersList" class="text-sm text-green-600">Loading...</div>
+        </div>
+
         <div class="menu-options">
             <% if (user) { %>
                 <a href="/game" class="menu-button play-btn">🎮 Play Game</a>
@@ -127,7 +134,33 @@
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
+        // Socket.IO connection for active users tracking
+        const socket = io();
+
+        // Function to update active users display
+        function updateActiveUsers(users) {
+            const container = document.getElementById('activeUsersList');
+            container.innerHTML = `<strong>${users.length}</strong>`;
+        }
+
+        // Listen for active users updates
+        socket.on('active-users-update', (users) => {
+            updateActiveUsers(users);
+        });
+
+        // Initial fetch
+        fetch('/api/active-users')
+            .then(response => response.json())
+            .then(data => {
+                updateActiveUsers(data.activeUsers);
+            })
+            .catch(err => {
+                console.error('Failed to fetch active users:', err);
+                document.getElementById('activeUsersList').innerHTML = 'Unable to load active users';
+            });
+
         // Guest ID management
         function getOrCreateGuestId() {
             let guestId = localStorage.getItem('guestId');
