@@ -14,7 +14,7 @@ class EndlessRunner {
     this.musicEnabled = localStorage.getItem("musicEnabled") !== "false"; // Default to true
     this.initAudio();
 
-    this.gameState = "start"; // start, playing, catching, gameOver
+    this.gameState = "start"; // start, playing, catching, paused, gameOver
     this.score = 0;
     this.distance = 0; // Add distance tracking
     this.highScore = localStorage.getItem("highScore") || 0;
@@ -106,6 +106,7 @@ class EndlessRunner {
     this.generateBackgroundTrees();
     this.updateHighScore();
     this.updateAudioButtons(); // Initialize audio button states
+    this.updatePauseButton(); // Initialize pause button state
     this.gameLoop();
   }
 
@@ -278,6 +279,21 @@ class EndlessRunner {
       this.restartGame();
     });
 
+    // Pause button
+    document.getElementById("pauseBtn").addEventListener("click", () => {
+      this.togglePause();
+    });
+
+    // Resume button
+    document.getElementById("resumeBtn").addEventListener("click", () => {
+      this.resumeGame();
+    });
+
+    // Pause restart button
+    document.getElementById("pauseRestartBtn").addEventListener("click", () => {
+      this.restartGame();
+    });
+
     // Audio toggle buttons
     document.getElementById("audioToggle").addEventListener("click", () => {
       this.toggleAudio();
@@ -302,6 +318,47 @@ class EndlessRunner {
     this.spawnMonster(); // Spawn the single monster
     this.startBackgroundMusic(); // Start background music
     this.startSession(); // Start tracking session
+    this.updatePauseButton(); // Update pause button for playing state
+  }
+
+  togglePause() {
+    if (this.gameState === "playing") {
+      this.pauseGame();
+    } else if (this.gameState === "paused") {
+      this.resumeGame();
+    }
+  }
+
+  pauseGame() {
+    if (this.gameState === "playing") {
+      this.gameState = "paused";
+      document.getElementById("pauseScreen").classList.remove("hidden");
+      this.stopBackgroundMusic(); // Pause background music
+      this.updatePauseButton();
+    }
+  }
+
+  resumeGame() {
+    if (this.gameState === "paused") {
+      this.gameState = "playing";
+      document.getElementById("pauseScreen").classList.add("hidden");
+      this.startBackgroundMusic(); // Resume background music
+      this.updatePauseButton();
+    }
+  }
+
+  updatePauseButton() {
+    const pauseBtn = document.getElementById("pauseBtn");
+    if (this.gameState === "paused") {
+      pauseBtn.textContent = "▶️ Resume";
+      pauseBtn.className = "bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm";
+    } else if (this.gameState === "playing") {
+      pauseBtn.textContent = "⏸️ Pause";
+      pauseBtn.className = "bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm";
+    } else {
+      pauseBtn.textContent = "⏸️ Pause";
+      pauseBtn.className = "bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm";
+    }
   }
 
   restartGame() {
@@ -360,6 +417,7 @@ class EndlessRunner {
     this.scoreMultiplier = false;
     this.scoreMultiplierTimer = 0;
     document.getElementById("gameOverScreen").classList.add("hidden");
+    document.getElementById("pauseScreen").classList.add("hidden"); // Hide pause screen on restart
     document.getElementById("backLink").style.display = "none";
     // Update UI to show reset coin count
     document.getElementById("score").textContent = "0";
@@ -369,6 +427,7 @@ class EndlessRunner {
     this.spawnMonster(); // Spawn the single monster
     this.startBackgroundMusic(); // Restart background music
     this.startSession(); // Start new session
+    this.updatePauseButton(); // Update pause button for playing state
   }
 
   jump() {
@@ -4193,6 +4252,10 @@ class EndlessRunner {
     if (this.gameState === "catching") {
       this.updateCatchingAnimation();
       return;
+    }
+
+    if (this.gameState === "paused") {
+      return; // Don't update game logic when paused
     }
 
     if (this.gameState !== "playing") return;

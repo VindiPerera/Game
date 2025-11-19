@@ -1,10 +1,12 @@
 <html lang="en">
+
 <head>
      <meta charset="UTF-8">
      <meta name="viewport" content="width=device-width, initial-scale=1.0">
      <title>Endless Runner Game</title>
      <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 </head>
+
 <body class="bg-gradient-to-b from-sky-300 to-green-300 min-h-screen overflow-hidden">
      <!-- Game Container -->
      <div id="gameContainer" class="relative w-full h-screen">
@@ -28,22 +30,48 @@
                          <div id="slowMotionIndicator" class="text-indigo-300 hidden">SLOW MOTION!</div>
                     </div>
                     <div class="mt-3 flex gap-2">
-<button id="audioToggle" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"></button>
-<button id="musicToggle" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"></button>
+                         <button id="pauseBtn"
+                              class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">⏸️
+                              Pause</button>
+                         <button id="audioToggle"
+                              class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"></button>
+                         <button id="musicToggle"
+                              class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"></button>
                     </div>
                </div>
           </div>
 
           <!-- Game Over Screen -->
-          <div id="gameOverScreen" class="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-20 hidden">
+          <div id="gameOverScreen"
+               class="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-20 hidden">
                <div class="bg-white p-8 rounded-lg text-center">
                     <h2 class="text-3xl font-bold mb-4 text-red-600">Game Over!</h2>
                     <p class="text-xl mb-2">Final Coin: <span id="finalScore">0</span></p>
                     <p class="text-lg mb-2">Distance: <span id="finalDistance">0</span>m</p>
                     <p class="text-lg mb-4">High Coin: <span id="finalHighScore">0</span></p>
-                    <button id="restartBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-bold">
+                    <button id="restartBtn"
+                         class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-bold">
                          Play Again
                     </button>
+               </div>
+          </div>
+
+          <!-- Pause Screen -->
+          <div id="pauseScreen"
+               class="absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-20 hidden">
+               <div class="bg-white p-8 rounded-lg text-center">
+                    <h2 class="text-3xl font-bold mb-4 text-red-600">Game Paused</h2>
+                    <p class="text-lg mb-4">Click Resume to continue playing</p>
+                    <div class="flex gap-4 justify-center">
+                         <button id="resumeBtn"
+                              class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-bold">
+                              Resume
+                         </button>
+                         <button id="pauseRestartBtn"
+                              class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-bold">
+                              Restart
+                         </button>
+                    </div>
                </div>
           </div>
 
@@ -57,9 +85,11 @@
                               <li>• <strong>SPACEBAR:</strong> Jump (press twice for double jump)</li>
                               <li>• <strong>ARROW DOWN or S:</strong> Crouch/Slide under obstacles</li>
                               <li>• <strong>Collect coins:</strong> Bonus points and power-ups</li>
-                              <li>• <strong>Avoid obstacles:</strong> You can take 2 hits before the monster becomes deadly</li>
+                              <li>• <strong>Avoid obstacles:</strong> You can take 2 hits before the monster becomes
+                                   deadly</li>
                               <li>• <strong>Watch out for gaps:</strong> Falling into gaps ends the game instantly</li>
-                              <li>• <strong>Monster:</strong> Gets closer with each hit - avoid it after 2 obstacles!</li>
+                              <li>• <strong>Monster:</strong> Gets closer with each hit - avoid it after 2 obstacles!
+                              </li>
                          </ul>
                          <h3 class="text-md font-semibold mt-3 mb-1">Power-ups:</h3>
                          <ul class="text-xs space-y-1 text-gray-600">
@@ -69,7 +99,8 @@
                               <li>• <strong>Double Coins:</strong> Doubles coin rewards briefly</li>
                          </ul>
                     </div>
-                    <button id="startBtn" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-bold">
+                    <button id="startBtn"
+                         class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-bold">
                          Start Game
                     </button>
                </div>
@@ -81,6 +112,8 @@
 
      <script src="game.js"></script>
 </body>
+
 </html>
 </body>
+
 </html>
