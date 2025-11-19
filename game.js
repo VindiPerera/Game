@@ -4282,9 +4282,11 @@ class EndlessRunner {
       );
       this.updateSessionStats(); // Update session stats with current distance
 
-      // Switch to night mode after 500m and stay there
-      if (this.distance >= 500 && !this.isNightMode) {
+      // Switch to night mode every 1000m
+      if (Math.floor(this.distance / 1000) % 2 === 1 && !this.isNightMode) {
         this.isNightMode = true;
+      } else if (Math.floor(this.distance / 1000) % 2 === 0 && this.isNightMode) {
+        this.isNightMode = false;
       }
     }
   }
