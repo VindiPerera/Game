@@ -98,7 +98,7 @@
         }
     </style>
 </head>
-<body>
+    <body data-user="<%- JSON.stringify(user || {}).replace(/"/g, '&quot;') %>">
     <div class="header">
         <h1><%= title %></h1>
         <p>Choose your option below</p>
@@ -137,8 +137,34 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
+        // Pass user data to client-side JavaScript
+        try {
+            const userData = document.body.getAttribute('data-user').replace(/&quot;/g, '"');
+            window.menuUser = userData ? JSON.parse(userData) : {};
+        } catch (e) {
+            window.menuUser = {};
+        }
+
         // Socket.IO connection for active users tracking
         const socket = io();
+
+        // Join as active user
+        if (window.menuUser && window.menuUser.id) {
+            // Logged-in user
+            socket.emit('join-game', {
+                id: window.menuUser.id,
+                username: window.menuUser.username,
+                isGuest: false
+            });
+        } else {
+            // Guest user
+            const guestId = getOrCreateGuestId();
+            socket.emit('join-game', {
+                id: 0,
+                username: guestId,
+                isGuest: true
+            });
+        }
 
         // Function to update active users display
         function updateActiveUsers(users) {
