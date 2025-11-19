@@ -102,6 +102,9 @@ class EndlessRunner {
 
     this.keys = {};
 
+    // Ground details initialization flag
+    this.groundDetailsInitialized = false;
+
     this.setupEventListeners();
     this.generateClouds();
     this.generateBackgroundTrees();
@@ -263,6 +266,10 @@ class EndlessRunner {
         e.preventDefault();
         this.slide();
       }
+      if (e.code === "Enter") {
+        e.preventDefault();
+        this.togglePause();
+      }
     });
 
     document.addEventListener("keyup", (e) => {
@@ -415,7 +422,6 @@ class EndlessRunner {
     this.magnetTimer = 0;
     this.speedBoost = false;
     this.speedBoostTimer = 0;
-    this.autoDodge = false;
     this.scoreMultiplier = false;
     this.scoreMultiplierTimer = 0;
     document.getElementById("gameOverScreen").classList.add("hidden");
@@ -867,10 +873,10 @@ class EndlessRunner {
     // Uses separate timer from obstacles for independent spawning
     if (this.collectibleTimer <= 0) {
       const rand = Math.random();
-      if (rand < 0.8) {
-        // 80% chance for coins
+      if (rand < 0.7) {
+        // 70% chance for coins
         this.spawnCoins();
-      } else if (rand < 0.9) {
+      } else if (rand < 0.8) {
         // 10% chance for shield power-up
         this.spawnPowerUp("shield");
       } else if (rand < 0.9) {
@@ -1287,7 +1293,6 @@ class EndlessRunner {
       this.speedBoostTimer--;
       if (this.speedBoostTimer === 0) {
         this.speedBoost = false;
-        this.autoDodge = false;
         this.gameSpeed = this.baseGameSpeed;
       }
     }
@@ -1509,45 +1514,8 @@ class EndlessRunner {
   }
 
   checkCollisions() {
-    // Auto-dodge obstacles during boost
-    if (this.autoDodge) {
-      // Automatically jump over ground obstacles during boost
-      for (let obstacle of this.obstacles) {
-        if (
-          obstacle.x - this.player.x < 100 &&
-          obstacle.x > this.player.x &&
-          !this.player.jumping
-        ) {
-          this.jump();
-          break;
-        }
-      }
-      for (let trap of this.fireTraps) {
-        if (
-          trap.x - this.player.x < 100 &&
-          trap.x > this.player.x &&
-          trap.active &&
-          !this.player.jumping
-        ) {
-          this.jump();
-          break;
-        }
-      }
-      // Auto-slide under birds during boost
-      for (let bird of this.birds) {
-        if (
-          bird.x - this.player.x < 100 &&
-          bird.x > this.player.x &&
-          !this.player.sliding
-        ) {
-          this.slide();
-          break;
-        }
-      }
-    }
-
-    // Skip damage if invulnerable or auto-dodging
-    const canTakeDamage = !this.invulnerable && !this.autoDodge;
+    // Skip damage if invulnerable
+    const canTakeDamage = !this.invulnerable;
 
     // Check ground obstacle collisions
     if (canTakeDamage) {
@@ -1808,9 +1776,8 @@ class EndlessRunner {
         break;
       case "boost":
         this.speedBoost = true;
-        this.speedBoostTimer = 420; // 7 seconds - rockets forward, auto-dodges obstacles
+        this.speedBoostTimer = 420; // 7 seconds - increases game speed
         this.gameSpeed = this.baseGameSpeed * 1.8; // Much faster
-        this.autoDodge = true; // Auto-dodge obstacles during boost
         break;
       case "doublecoins":
         this.scoreMultiplier = true;
@@ -2758,143 +2725,245 @@ class EndlessRunner {
   }
 
   drawObstacles() {
-    // Draw gaps (forest theme)
-    // Draw gaps (forest theme - deep pits with roots and darkness)
-    this.gaps.forEach((gap) => {
-      // Deep shadow/darkness at bottom
-      const depthGradient = this.ctx.createLinearGradient(
-        gap.x,
-        gap.y,
-        gap.x,
-        gap.y + gap.height
-      );
-      depthGradient.addColorStop(0, "#0a0a0a");
-      depthGradient.addColorStop(0.3, "#050505");
-      depthGradient.addColorStop(1, "#000000");
+    // Draw gaps (water pits - realistic water with enhanced ripples, light rays, and aquatic life)
+    // Group consecutive gaps to display 1-3 combined pits as one continuous pit
+    const sortedGaps = [...this.gaps].sort((a, b) => a.x - b.x);
+    const gapGroups = [];
 
-      this.ctx.fillStyle = depthGradient;
-      this.ctx.fillRect(gap.x, gap.y, gap.width, gap.height);
-
-      // Layered darkness for depth
-      for (let i = 0; i < 5; i++) {
-        const layerAlpha = 0.15 * (5 - i);
-        this.ctx.fillStyle = `rgba(0, 0, 0, ${layerAlpha})`;
-        this.ctx.fillRect(gap.x, gap.y + i * 20, gap.width, 20);
-      }
-
-      // Left edge - dirt and roots
-      const leftEdgeGrad = this.ctx.createLinearGradient(
-        gap.x - 8,
-        gap.y - 15,
-        gap.x + 5,
-        gap.y - 15
-      );
-      leftEdgeGrad.addColorStop(0, "#6B4423");
-      leftEdgeGrad.addColorStop(0.5, "#8B4513");
-      leftEdgeGrad.addColorStop(1, "#5C3317");
-
-      this.ctx.fillStyle = leftEdgeGrad;
-      this.ctx.fillRect(gap.x - 8, gap.y - 15, 8, 15);
-
-      // Right edge - dirt and roots
-      const rightEdgeGrad = this.ctx.createLinearGradient(
-        gap.x + gap.width - 5,
-        gap.y - 15,
-        gap.x + gap.width + 8,
-        gap.y - 15
-      );
-      rightEdgeGrad.addColorStop(0, "#5C3317");
-      rightEdgeGrad.addColorStop(0.5, "#8B4513");
-      rightEdgeGrad.addColorStop(1, "#6B4423");
-
-      this.ctx.fillStyle = rightEdgeGrad;
-      this.ctx.fillRect(gap.x + gap.width, gap.y - 15, 8, 15);
-
-      // Grass overhanging the edges
-      this.ctx.fillStyle = "#228B22";
-      for (let i = 0; i < gap.width / 10; i++) {
-        const grassX = gap.x + i * 10;
-        // Left edge grass
-        this.ctx.fillRect(gap.x - 5, gap.y - 15 + i * 2, 5, 2);
-        this.ctx.fillRect(gap.x - 3, gap.y - 18 + i * 2, 3, 3);
-        // Right edge grass
-        this.ctx.fillRect(gap.x + gap.width, gap.y - 15 + i * 2, 5, 2);
-        this.ctx.fillRect(gap.x + gap.width, gap.y - 18 + i * 2, 3, 3);
-      }
-
-      // Exposed roots hanging down
-      this.ctx.strokeStyle = "#4A2511";
-      this.ctx.lineWidth = 2;
-      for (let i = 0; i < 8; i++) {
-        const rootX = gap.x + (gap.width / 8) * i;
-        const rootLength = 15 + Math.sin(i * 0.7) * 10;
-        const rootWave = Math.sin(i * 1.2) * 5;
-
-        this.ctx.beginPath();
-        this.ctx.moveTo(rootX, gap.y - 12);
-        this.ctx.quadraticCurveTo(
-          rootX + rootWave,
-          gap.y - 5,
-          rootX + rootWave * 0.5,
-          gap.y + rootLength
-        );
-        this.ctx.stroke();
-
-        // Small root branches
-        if (i % 2 === 0) {
-          this.ctx.lineWidth = 1;
-          this.ctx.beginPath();
-          this.ctx.moveTo(rootX + rootWave * 0.5, gap.y + rootLength * 0.6);
-          this.ctx.lineTo(
-            rootX + rootWave * 0.5 - 3,
-            gap.y + rootLength * 0.6 + 5
-          );
-          this.ctx.stroke();
-          this.ctx.lineWidth = 2;
+    // Group consecutive gaps that are adjacent
+    let currentGroup = [];
+    for (let i = 0; i < sortedGaps.length; i++) {
+      const gap = sortedGaps[i];
+      if (currentGroup.length === 0) {
+        currentGroup.push(gap);
+      } else {
+        const lastGap = currentGroup[currentGroup.length - 1];
+        // Check if this gap is adjacent to the last one in the group
+        if (gap.x <= lastGap.x + lastGap.width + 5) { // Small tolerance for positioning
+          currentGroup.push(gap);
+        } else {
+          // Start a new group
+          gapGroups.push(currentGroup);
+          currentGroup = [gap];
         }
       }
+    }
+    if (currentGroup.length > 0) {
+      gapGroups.push(currentGroup);
+    }
 
-      // Rocks and debris on pit walls
-      this.ctx.fillStyle = "#696969";
+    // Draw each group as a continuous pit
+    gapGroups.forEach((group) => {
+      if (group.length === 0) return;
+
+      // Calculate the bounds of the continuous pit
+      const minX = Math.min(...group.map(g => g.x));
+      const maxX = Math.max(...group.map(g => g.x + g.width));
+      const pitWidth = maxX - minX;
+      const pitY = group[0].y; // All gaps in group should have same y
+      const pitHeight = group[0].height; // All gaps in group should have same height
+
+      const time = Date.now() * 0.001; // For water animation
+
+      // Water surface with enhanced gradient from light blue at top to deeper blue at bottom
+      const waterGradient = this.ctx.createLinearGradient(
+        minX,
+        pitY,
+        minX,
+        pitY + pitHeight
+      );
+      waterGradient.addColorStop(0, "#87CEEB"); // Sky blue at surface
+      waterGradient.addColorStop(0.2, "#4682B4"); // Steel blue
+      waterGradient.addColorStop(0.5, "#1e90ff"); // Dodger blue
+      waterGradient.addColorStop(0.8, "#00008B"); // Dark blue
+      waterGradient.addColorStop(1, "#000080"); // Navy blue at bottom
+
+      this.ctx.fillStyle = waterGradient;
+      this.ctx.fillRect(minX, pitY, pitWidth, pitHeight);
+
+      // Enhanced water ripples/waves on the surface with more layers
+      this.ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+      this.ctx.lineWidth = 1;
+      for (let i = 0; i < 12; i++) {
+        const waveY = pitY + 8 + i * 6;
+        const waveOffset = Math.sin(time * 2 + i * 0.4) * 4;
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(minX, waveY + waveOffset);
+        for (let x = minX; x < minX + pitWidth; x += 8) {
+          const waveHeight = Math.sin((x - minX) * 0.12 + time * 4 + i) * 3;
+          this.ctx.lineTo(x, waveY + waveOffset + waveHeight);
+        }
+        this.ctx.stroke();
+      }
+
+      // Light rays piercing through water surface
+      this.ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+      this.ctx.lineWidth = 2;
       for (let i = 0; i < 6; i++) {
-        const rockX = gap.x + 5 + Math.sin(i * 2.3) * (gap.width - 15);
-        const rockY = gap.y + 10 + i * 15;
-        const rockSize = 3 + Math.sin(i * 1.8) * 2;
+        const rayX = minX + (pitWidth / 6) * i + Math.sin(time * 0.5 + i) * 10;
+        const rayLength = 30 + Math.sin(time * 1.5 + i * 0.7) * 10;
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(rayX, pitY);
+        this.ctx.lineTo(rayX + Math.sin(i * 0.8) * 5, pitY + rayLength);
+        this.ctx.stroke();
+      }
+
+      // Underwater rocks and pebbles - more detailed
+      this.ctx.fillStyle = "rgba(105, 105, 105, 0.7)"; // Semi-transparent gray rocks
+      for (let i = 0; i < 8; i++) {
+        const rockX = minX + 10 + Math.sin(i * 2.1) * (pitWidth - 25);
+        const rockY = pitY + 18 + i * 10;
+        const rockSize = 2.5 + Math.sin(i * 1.7) * 2;
 
         this.ctx.beginPath();
         this.ctx.arc(rockX, rockY, rockSize, 0, Math.PI * 2);
         this.ctx.fill();
+
+        // Add rock highlights
+        this.ctx.fillStyle = "rgba(169, 169, 169, 0.5)";
+        this.ctx.beginPath();
+        this.ctx.arc(rockX - 1, rockY - 1, rockSize * 0.3, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.fillStyle = "rgba(105, 105, 105, 0.7)"; // Reset
       }
 
-      // Misty fog at the bottom
-      const fogGradient = this.ctx.createRadialGradient(
-        gap.x + gap.width / 2,
-        gap.y + gap.height - 30,
-        0,
-        gap.x + gap.width / 2,
-        gap.y + gap.height - 30,
-        gap.width
+      // Enhanced water plants/reeds along the edges with more variety
+      this.ctx.strokeStyle = "rgba(34, 139, 34, 0.8)"; // Semi-transparent green
+      this.ctx.lineWidth = 1.5;
+      for (let i = 0; i < 12; i++) {
+        const reedX = minX + (pitWidth / 12) * i + Math.sin(i * 0.7) * 4;
+        const reedHeight = 14 + Math.sin(i * 1.3) * 6;
+
+        this.ctx.beginPath();
+        this.ctx.moveTo(reedX, pitY - 3);
+        this.ctx.quadraticCurveTo(
+          reedX + Math.sin(time + i) * 3,
+          pitY - reedHeight * 0.6,
+          reedX + Math.sin(time * 1.8 + i) * 2,
+          pitY - reedHeight
+        );
+        this.ctx.stroke();
+
+        // Add small leaves on reeds
+        if (i % 3 === 0) {
+          this.ctx.beginPath();
+          this.ctx.moveTo(reedX + Math.sin(time + i) * 3, pitY - reedHeight * 0.4);
+          this.ctx.lineTo(reedX + Math.sin(time + i) * 3 + 4, pitY - reedHeight * 0.4 - 2);
+          this.ctx.stroke();
+        }
+      }
+
+      // Enhanced water reflections/sparkles with different sizes
+      for (let i = 0; i < 20; i++) {
+        const sparkleX = minX + 12 + (pitWidth - 25) * (i / 19);
+        const sparkleY = pitY + 6 + Math.sin(time * 1.4 + i * 0.6) * 4;
+        const sparkleSize = 0.8 + Math.sin(time * 2.5 + i) * 0.6;
+
+        // Sparkle glow
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+        this.ctx.beginPath();
+        this.ctx.arc(sparkleX, sparkleY, sparkleSize * 2, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Sparkle core
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        this.ctx.beginPath();
+        this.ctx.arc(sparkleX, sparkleY, sparkleSize, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+
+      // Underwater sediment at the bottom with more detail
+      const sedimentGradient = this.ctx.createLinearGradient(
+        minX,
+        pitY + pitHeight - 25,
+        minX,
+        pitY + pitHeight
       );
-      fogGradient.addColorStop(0, "rgba(200, 200, 220, 0.15)");
-      fogGradient.addColorStop(0.5, "rgba(150, 150, 170, 0.1)");
-      fogGradient.addColorStop(1, "rgba(100, 100, 120, 0)");
+      sedimentGradient.addColorStop(0, "rgba(139, 69, 19, 0.4)"); // Semi-transparent brown
+      sedimentGradient.addColorStop(0.5, "rgba(160, 82, 45, 0.6)"); // Semi-transparent saddle brown
+      sedimentGradient.addColorStop(1, "rgba(101, 67, 33, 0.8)"); // Semi-transparent dark brown
 
-      this.ctx.fillStyle = fogGradient;
-      this.ctx.fillRect(gap.x, gap.y + gap.height - 50, gap.width, 50);
+      this.ctx.fillStyle = sedimentGradient;
+      this.ctx.fillRect(minX, pitY + pitHeight - 25, pitWidth, 25);
 
-      // Cracks in the edge walls
-      this.ctx.strokeStyle = "rgba(0, 0, 0, 0.4)";
-      this.ctx.lineWidth = 1;
-      for (let i = 0; i < 4; i++) {
+      // Enhanced small fish or water creatures - multiple types
+      if (Math.sin(time + minX * 0.01) > 0.6) {
+        // Large fish
+        const fishX = minX + pitWidth * 0.4 + Math.sin(time * 1.2) * 25;
+        const fishY = pitY + pitHeight * 0.5 + Math.sin(time * 1.8) * 12;
+
+        // Fish body with gradient
+        const fishGrad = this.ctx.createLinearGradient(
+          fishX - 6, fishY, fishX + 6, fishY
+        );
+        fishGrad.addColorStop(0, "rgba(255, 215, 0, 0.7)"); // Gold
+        fishGrad.addColorStop(0.5, "rgba(255, 255, 0, 0.8)"); // Yellow
+        fishGrad.addColorStop(1, "rgba(255, 215, 0, 0.7)"); // Gold
+
+        this.ctx.fillStyle = fishGrad;
         this.ctx.beginPath();
-        this.ctx.moveTo(gap.x - 6, gap.y - 10 + i * 5);
-        this.ctx.lineTo(gap.x - 2, gap.y - 12 + i * 5);
-        this.ctx.stroke();
+        this.ctx.ellipse(fishX, fishY, 6, 3, 0, 0, Math.PI * 2);
+        this.ctx.fill();
 
+        // Fish tail with animation
+        this.ctx.fillStyle = "rgba(255, 140, 0, 0.6)"; // Orange
         this.ctx.beginPath();
-        this.ctx.moveTo(gap.x + gap.width + 2, gap.y - 10 + i * 5);
-        this.ctx.lineTo(gap.x + gap.width + 6, gap.y - 12 + i * 5);
-        this.ctx.stroke();
+        this.ctx.moveTo(fishX - 6, fishY);
+        this.ctx.lineTo(fishX - 10 - Math.sin(time * 3) * 2, fishY - 3);
+        this.ctx.lineTo(fishX - 10 - Math.sin(time * 3) * 2, fishY + 3);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Fish fins
+        this.ctx.fillStyle = "rgba(255, 215, 0, 0.5)";
+        this.ctx.beginPath();
+        this.ctx.moveTo(fishX - 2, fishY - 2);
+        this.ctx.lineTo(fishX, fishY - 5);
+        this.ctx.lineTo(fishX + 2, fishY - 2);
+        this.ctx.closePath();
+        this.ctx.fill();
+      }
+
+      // Small schooling fish
+      for (let f = 0; f < 4; f++) {
+        if (Math.sin(time * 0.8 + f * 0.5 + minX * 0.005) > 0.4) {
+          const smallFishX = minX + pitWidth * 0.6 + Math.sin(time * 1.5 + f) * 15 + f * 8;
+          const smallFishY = pitY + pitHeight * 0.7 + Math.sin(time * 2.2 + f * 0.8) * 8;
+
+          this.ctx.fillStyle = "rgba(173, 216, 230, 0.8)"; // Light blue
+          this.ctx.beginPath();
+          this.ctx.ellipse(smallFishX, smallFishY, 3, 1.5, 0, 0, Math.PI * 2);
+          this.ctx.fill();
+
+          // Small tail
+          this.ctx.fillStyle = "rgba(135, 206, 235, 0.6)"; // Sky blue
+          this.ctx.beginPath();
+          this.ctx.moveTo(smallFishX - 3, smallFishY);
+          this.ctx.lineTo(smallFishX - 5, smallFishY - 1);
+          this.ctx.lineTo(smallFishX - 5, smallFishY + 1);
+          this.ctx.closePath();
+          this.ctx.fill();
+        }
+      }
+
+      // Underwater bubbles rising
+      for (let b = 0; b < 6; b++) {
+        const bubbleX = minX + 15 + (pitWidth - 30) * (b / 5) + Math.sin(time * 0.7 + b) * 5;
+        const bubbleY = pitY + pitHeight - 10 - (time * 20 + b * 30) % (pitHeight - 30);
+        const bubbleSize = 1 + Math.sin(b * 0.5) * 0.5;
+
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+        this.ctx.beginPath();
+        this.ctx.arc(bubbleX, bubbleY, bubbleSize, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Bubble highlight
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+        this.ctx.beginPath();
+        this.ctx.arc(bubbleX - 0.3, bubbleY - 0.3, bubbleSize * 0.3, 0, Math.PI * 2);
+        this.ctx.fill();
       }
     });
     // Draw ground obstacles (forest theme - rocks/boulders)
@@ -3860,9 +3929,9 @@ class EndlessRunner {
     const bounce = Math.sin(monster.frame * 1.5) * 6;
     const breathe = Math.sin(monster.frame * 0.8) * 3;
 
-    // Draw monster shadow (bigger)
-    this.ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-    this.ctx.fillRect(mx - 4, this.ground - 3, monster.width + 8, 6);
+    // Draw monster shadow (bigger) - REMOVED
+    // this.ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+    // this.ctx.fillRect(mx - 4, this.ground - 3, monster.width + 8, 6);
 
     // Monster body - always use level 1 appearance
     // Temple monster - red/dark
@@ -4229,25 +4298,238 @@ class EndlessRunner {
   
 
   drawGround() {
-    // Forest ground - green with leaf litter
-    this.ctx.fillStyle = "#228B22";
-    this.ctx.fillRect(
-      0,
-      this.ground,
-      this.canvas.width,
-      this.canvas.height - this.ground
-    );
+    // Create a more realistic forest ground with gradients, texture, and details
+    const groundHeight = this.canvas.height - this.ground;
 
-    // Ground pattern - forest floor with leaves and dirt patches
-    this.ctx.fillStyle = "#32CD32";
-    for (let i = 0; i < this.canvas.width; i += 60) {
-      let offset = (i + this.score) % 120;
-      this.ctx.fillRect(offset, this.ground, 30, 8);
+    // Base ground layer with gradient for depth
+    const groundGradient = this.ctx.createLinearGradient(0, this.ground, 0, this.canvas.height);
+    groundGradient.addColorStop(0, "#228B22"); // Forest green at top
+    groundGradient.addColorStop(0.3, "#228B22"); // Maintain forest green
+    groundGradient.addColorStop(1, "#1e5b1e"); // Slightly darker at bottom for depth
 
-      // Add some leaf litter
-      this.ctx.fillStyle = "#8B4513";
-      this.ctx.fillRect(offset + 5, this.ground + 2, 8, 3);
-      this.ctx.fillStyle = "#32CD32";
+    this.ctx.fillStyle = groundGradient;
+    this.ctx.fillRect(0, this.ground, this.canvas.width, groundHeight);
+
+    // Add subtle shadow at the bottom for depth
+    const shadowGradient = this.ctx.createLinearGradient(0, this.canvas.height - 20, 0, this.canvas.height);
+    shadowGradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+    shadowGradient.addColorStop(1, "rgba(0, 0, 0, 0.3)");
+
+    this.ctx.fillStyle = shadowGradient;
+    this.ctx.fillRect(0, this.canvas.height - 20, this.canvas.width, 20);
+
+    // Add realistic ground details
+    this.drawGroundDetails();
+  }
+
+  drawGroundDetails() {
+    // Draw grass blades, dirt particles, and fallen leaves for realism
+    const groundY = this.ground;
+
+    // Initialize ground details if not already done
+    if (!this.groundDetailsInitialized) {
+      this.initializeGroundDetails();
+    }
+
+    // Update ground detail positions for scrolling effect
+    this.updateGroundDetails();
+
+    // Draw grass blades along the top edge with gentle sway
+    this.ctx.strokeStyle = "#32CD32"; // Lime green for grass
+    this.ctx.lineWidth = 1;
+    this.ctx.globalAlpha = 0.8;
+
+    const time = Date.now() * 0.001; // For animation
+    for (let i = 0; i < this.grassBlades.length; i++) {
+      const blade = this.grassBlades[i];
+      const sway = Math.sin(time + blade.phase) * 1.5; // Gentle sway
+
+      this.ctx.beginPath();
+      this.ctx.moveTo(blade.x, groundY);
+      this.ctx.quadraticCurveTo(
+        blade.x + sway, groundY - blade.height * 0.5,
+        blade.x + sway * 0.5, groundY - blade.height
+      );
+      this.ctx.stroke();
+    }
+
+    // Draw dirt particles and pebbles
+    this.ctx.fillStyle = "#8B4513"; // Saddle brown for dirt
+    this.ctx.globalAlpha = 0.6;
+
+    for (let particle of this.dirtParticles) {
+      this.ctx.beginPath();
+      this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+
+    // Draw fallen leaves
+    this.ctx.globalAlpha = 0.7;
+
+    for (let leaf of this.fallenLeaves) {
+      this.ctx.save();
+      this.ctx.translate(leaf.x, leaf.y);
+      this.ctx.rotate(leaf.rotation);
+      this.ctx.fillStyle = leaf.color;
+
+      // Draw simple leaf shape
+      this.ctx.beginPath();
+      this.ctx.ellipse(0, 0, leaf.size, leaf.size * 0.6, 0, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      // Add leaf stem
+      this.ctx.strokeStyle = "#654321";
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, -leaf.size * 0.3);
+      this.ctx.lineTo(0, leaf.size * 0.3);
+      this.ctx.stroke();
+
+      this.ctx.restore();
+    }
+
+    // Add subtle ground texture with noise
+    this.ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
+    this.ctx.globalAlpha = 0.1;
+
+    for (let noise of this.groundNoise) {
+      this.ctx.beginPath();
+      this.ctx.arc(noise.x, noise.y, noise.size, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+
+    // Reset global alpha
+    this.ctx.globalAlpha = 1.0;
+  }
+
+  initializeGroundDetails() {
+    // Generate static ground details that don't change each frame
+    this.grassBlades = [];
+    this.dirtParticles = [];
+    this.fallenLeaves = [];
+    this.mossPatches = [];
+    this.groundNoise = [];
+
+    const groundY = this.ground;
+    this.leafColors = ["#8B4513", "#A0522D", "#CD853F", "#D2691E"];
+
+    // Generate grass blades
+    for (let x = 0; x < this.canvas.width; x += 3) {
+      this.grassBlades.push({
+        x: x,
+        height: 8 + (x * 0.01) % 12, // Pseudo-random height based on position
+        phase: (x * 0.1) % (Math.PI * 2) // Phase for sway animation
+      });
+    }
+
+    // Generate dirt particles
+    for (let i = 0; i < 50; i++) {
+      const seed = i * 7.3; // Use seed for consistent "randomness"
+      this.dirtParticles.push({
+        x: (seed * 13) % this.canvas.width,
+        y: groundY + 5 + (seed * 17) % (this.canvas.height - groundY - 25),
+        size: 1 + (seed * 23) % 3
+      });
+    }
+
+    // Generate fallen leaves
+    for (let i = 0; i < 15; i++) {
+      const seed = i * 11.7;
+      this.fallenLeaves.push({
+        x: (seed * 19) % this.canvas.width,
+        y: groundY + 10 + (seed * 29) % (this.canvas.height - groundY - 30),
+        size: 3 + (seed * 31) % 4,
+        rotation: (seed * 37) % (Math.PI * 2),
+        color: this.leafColors[Math.floor((seed * 41) % this.leafColors.length)]
+      });
+    }
+
+    // Generate moss patches
+    for (let i = 0; i < 8; i++) {
+      const seed = i * 43.1;
+      this.mossPatches.push({
+        x: (seed * 47) % this.canvas.width,
+        y: groundY + 15 + (seed * 53) % (this.canvas.height - groundY - 35),
+        width: 20 + (seed * 59) % 40,
+        height: 8 + (seed * 61) % 15,
+        rotation: (seed * 67) % Math.PI
+      });
+    }
+
+    // Generate ground noise
+    for (let i = 0; i < 200; i++) {
+      const seed = i * 71.3;
+      this.groundNoise.push({
+        x: (seed * 73) % this.canvas.width,
+        y: groundY + (seed * 79) % (this.canvas.height - groundY),
+        size: 0.5 + (seed * 83) % 1.5
+      });
+    }
+
+    this.groundDetailsInitialized = true;
+  }
+
+  updateGroundDetails() {
+    // Move ground details left to create running effect
+    const scrollSpeed = this.gameSpeed; // Match obstacle speed
+
+    // Update grass blades
+    for (let blade of this.grassBlades) {
+      blade.x -= scrollSpeed;
+      // Wrap around when off screen
+      if (blade.x < -10) {
+        blade.x = this.canvas.width + Math.random() * 50;
+        blade.height = 8 + (blade.x * 0.01) % 12; // Recalculate height
+        blade.phase = (blade.x * 0.1) % (Math.PI * 2); // Recalculate phase
+      }
+    }
+
+    // Update dirt particles
+    for (let particle of this.dirtParticles) {
+      particle.x -= scrollSpeed;
+      if (particle.x < -10) {
+        particle.x = this.canvas.width + Math.random() * 100;
+        const seed = particle.x * 17;
+        particle.y = this.ground + 5 + (seed % (this.canvas.height - this.ground - 25));
+        particle.size = 1 + (seed % 3);
+      }
+    }
+
+    // Update fallen leaves
+    for (let leaf of this.fallenLeaves) {
+      leaf.x -= scrollSpeed;
+      if (leaf.x < -20) {
+        leaf.x = this.canvas.width + Math.random() * 150;
+        const seed = leaf.x * 29;
+        leaf.y = this.ground + 10 + (seed % (this.canvas.height - this.ground - 30));
+        leaf.size = 3 + (seed % 4);
+        leaf.rotation = (seed % (Math.PI * 2));
+        leaf.color = this.leafColors[Math.floor(seed % this.leafColors.length)];
+      }
+    }
+
+    // Update moss patches
+    for (let moss of this.mossPatches) {
+      moss.x -= scrollSpeed;
+      if (moss.x < -50) {
+        moss.x = this.canvas.width + Math.random() * 200;
+        const seed = moss.x * 53;
+        moss.y = this.ground + 15 + (seed % (this.canvas.height - this.ground - 35));
+        moss.width = 20 + (seed % 40);
+        moss.height = 8 + (seed % 15);
+        moss.rotation = (seed % Math.PI);
+      }
+    }
+
+    // Update ground noise
+    for (let noise of this.groundNoise) {
+      noise.x -= scrollSpeed;
+      if (noise.x < -5) {
+        noise.x = this.canvas.width + Math.random() * 50;
+        const seed = noise.x * 79;
+        noise.y = this.ground + (seed % (this.canvas.height - this.ground));
+        noise.size = 0.5 + (seed % 1.5);
+      }
     }
   }
 
