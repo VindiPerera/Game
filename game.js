@@ -1987,7 +1987,8 @@ class EndlessRunner {
 
   // Session tracking methods
   startSession() {
-    this.sessionId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    // Generate a 7-digit session ID (server will generate its own)
+    this.sessionId = Math.floor(1000000 + Math.random() * 9000000).toString();
     this.sessionStartTime = Date.now();
     this.sessionStats = {
       coinsCollected: 0,

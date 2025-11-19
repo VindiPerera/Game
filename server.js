@@ -373,8 +373,10 @@ app.get("/leaderboard", checkAuth, (req, res) => {
           
           // Transform guest usernames to friendly format
           const transformedResults = results.map(result => {
-            if (result.guest_username && guestMap[result.guest_username]) {
-              result.username = `Guest_${guestMap[result.guest_username]}`;
+            if (result.guest_username) {
+              // Since guest_username is now stored as simple numbers (1, 2, 3), 
+              // display them as just the numbers without Guest_ prefix
+              result.username = result.guest_username;
             }
             return result;
           });
@@ -492,8 +494,10 @@ app.get("/winners", checkAuth, (req, res) => {
         
         // Transform guest usernames to friendly format
         const transformedResults = results.map(result => {
-          if (result.guest_username && guestMap[result.guest_username]) {
-            result.username = `Guest_${guestMap[result.guest_username]}`;
+          if (result.guest_username) {
+            // Since guest_username is now stored as simple numbers (1, 2, 3), 
+            // display them as just the numbers without Guest_ prefix
+            result.username = result.guest_username;
           }
           return result;
         });
@@ -544,6 +548,7 @@ app.get("/history", checkAuth, (req, res) => {
   db.query(
     `SELECT 
             u.username,
+            gs.session_id,
             gs.id AS game_id,
             gs.final_score,
             gs.duration_seconds,
@@ -718,7 +723,7 @@ app.post("/api/scores", authenticateToken, (req, res) => {
 });
 
 // Add a new session (allows guest sessions)
-app.post("/api/sessions", (req, res) => {
+app.post("/api/sessions", async (req, res) => {
   // Check if user is authenticated or if it's a guest session
   const token = req.cookies.token;
   let user = null;
@@ -743,13 +748,57 @@ app.post("/api/sessions", (req, res) => {
     // For guest users, use NULL for user_id and store guest ID
     const { guestId } = req.body;
     userId = null; // Use NULL to avoid foreign key constraint issues
-    guestUsername = guestId || `guest_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    
+    // Create a simple in-memory guest mapping for session persistence
+    if (!global.guestMapping) {
+      global.guestMapping = new Map();
+    }
+    
+    if (guestId) {
+      // Check if this guestId already has an assigned number
+      if (global.guestMapping.has(guestId)) {
+        guestUsername = global.guestMapping.get(guestId);
+        console.log(`Returning guest ${guestId} using existing number: ${guestUsername}`);
+      } else {
+        // New guest - assign next sequential number
+        const maxGuestNumber = await new Promise((resolve, reject) => {
+          db.query(
+            'SELECT MAX(CAST(guest_username AS UNSIGNED)) as max_num FROM game_sessions WHERE guest_username REGEXP "^[0-9]+$"',
+            (err, results) => {
+              if (err) reject(err);
+              else resolve(results[0]?.max_num || 0);
+            }
+          );
+        });
+        
+        guestUsername = (maxGuestNumber + 1).toString();
+        
+        // Store the mapping for future sessions
+        global.guestMapping.set(guestId, guestUsername);
+        console.log(`New guest ${guestId} assigned number: ${guestUsername}`);
+      }
+    } else {
+      // No guestId - generate sequential number
+      const maxGuestNumber = await new Promise((resolve, reject) => {
+        db.query(
+          'SELECT MAX(CAST(guest_username AS UNSIGNED)) as max_num FROM game_sessions WHERE guest_username REGEXP "^[0-9]+$"',
+          (err, results) => {
+            if (err) reject(err);
+            else resolve(results[0]?.max_num || 0);
+          }
+        );
+      });
+      guestUsername = (maxGuestNumber + 1).toString();
+    }
+    
     username = guestUsername; // For display purposes
     console.log("Saving guest session with ID:", guestUsername);
   }
 
+  // Generate a 7-digit session ID
+  const generateSessionId = () => Math.floor(1000000 + Math.random() * 9000000).toString();
+
   const {
-    sessionId,
     durationSeconds,
     finalScore,
     coinsCollected,
@@ -759,7 +808,10 @@ app.post("/api/sessions", (req, res) => {
     gameResult
   } = req.body;
 
-  if (!sessionId || !durationSeconds || finalScore === undefined) {
+  // Always generate a new 7-digit session ID
+  const sessionId = generateSessionId();
+
+  if (!durationSeconds || finalScore === undefined) {
     console.log("Invalid session data:", req.body);
     return res.status(400).json({ message: "Valid session data is required" });
   }
