@@ -376,7 +376,7 @@ app.get("/leaderboard", checkAuth, (req, res) => {
             if (result.guest_username) {
               // Since guest_username is now stored as simple numbers (1, 2, 3), 
               // display them as just the numbers without Guest_ prefix
-              result.username = result.guest_username;
+              result.username = `Guest ${result.guest_username}`;
             }
             return result;
           });
@@ -659,10 +659,11 @@ app.get("/api/scores", (req, res) => {
             return res.status(500).json({ message: "Failed to fetch scores" });
           }
           
-          // Transform guest usernames to friendly format
+         
           const transformedResults = results.map(result => {
-            if (result.guest_username && guestMap[result.guest_username]) {
-              result.username = `Guest_${guestMap[result.guest_username]}`;
+            if (result.guest_username && result.guest_username.match(/^\d+$/)) {
+              
+              result.username = `Guest ${result.guest_username}`;
             }
             return result;
           });

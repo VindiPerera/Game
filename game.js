@@ -1943,8 +1943,37 @@ class EndlessRunner {
   showGameOverScreen() {
     document.getElementById("finalScore").textContent = this.score;
     document.getElementById("finalDistance").textContent = this.distance;
-    document.getElementById("finalHighScore").textContent = this.highScore;
+    document.getElementById("finalPersonalBest").textContent = this.highScore; // User's personal best
+    
+    // Fetch global high score from server
+    this.fetchGlobalHighScore().then(globalHighScore => {
+      document.getElementById("finalHighScore").textContent = globalHighScore;
+    }).catch(error => {
+      console.error("Error fetching global high score:", error);
+      // Fallback to user's personal best if fetch fails
+      document.getElementById("finalHighScore").textContent = this.highScore;
+    });
+    
     document.getElementById("gameOverScreen").classList.remove("hidden");
+  }
+
+  async fetchGlobalHighScore() {
+    try {
+      const response = await fetch('/api/scores');
+      const data = await response.json();
+      
+      if (data.scores && data.scores.length > 0) {
+        // Return the highest score from all players
+        return data.scores[0].score;
+      } else {
+        // If no scores found, return user's personal best
+        return this.highScore;
+      }
+    } catch (error) {
+      console.error("Failed to fetch global high score:", error);
+      // Fallback to user's personal best
+      return this.highScore;
+    }
   }
 
   
