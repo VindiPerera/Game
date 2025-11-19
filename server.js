@@ -516,6 +516,53 @@ app.get("/wiki", checkAuth, (req, res) => {
   });
 });
 
+// History route - Shows game history for the logged-in user only
+app.get("/history", checkAuth, (req, res) => {
+  // If user is not logged in, redirect to login
+  if (!req.user) {
+    return res.redirect('/login');
+  }
+
+  // Get game history for the logged-in user only
+  db.query(
+    `SELECT 
+            u.username,
+            gs.id AS game_id,
+            gs.final_score,
+            gs.duration_seconds,
+            gs.coins_collected,
+            gs.obstacles_hit,
+            gs.powerups_collected,
+            gs.distance_traveled,
+            gs.game_result,
+            gs.created_at
+     FROM game_sessions gs
+     INNER JOIN users u ON gs.user_id = u.id
+     WHERE gs.user_id = ?
+     ORDER BY gs.created_at DESC 
+     LIMIT 50`,
+    [req.user.id],
+    (err, results) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.render('history', {
+          title: 'Game History',
+          history: [],
+          user: req.user,
+          error: 'Failed to load game history'
+        });
+      }
+      
+      res.render('history', {
+        title: 'Game History',
+        history: results,
+        user: req.user,
+        error: null
+      });
+    }
+  );
+});
+
 // Get all scores (public) - Shows each user's highest score from last 24 hours
 app.get("/api/scores", (req, res) => {
   // First get guest mapping
