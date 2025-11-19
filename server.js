@@ -700,38 +700,21 @@ app.post("/api/scores", authenticateToken, (req, res) => {
     return res.status(400).json({ message: "Valid score is required" });
   }
 
-  // Check if user exists
-  db.query("SELECT id FROM users WHERE id = ?", [req.user.id], (err, results) => {
-    if (err) {
-      console.error("Database error checking user:", err);
-      return res.status(500).json({ message: "Database error" });
-    }
-
-    let userId = req.user.id;
-    let username = req.user.username;
-
-    if (results.length === 0) {
-      // User not found, treat as guest
-      userId = null;
-      username = req.user.username;
-    }
-
-    db.query(
-      "INSERT INTO scores (user_id, username, score, level, distance, game_type) VALUES (?, ?, ?, ?, ?, ?)",
-      [userId, username, score, level, distance, game_type],
-      (err, result) => {
-        if (err) {
-          console.error("Database error saving score:", err);
-          return res.status(500).json({ message: "Failed to save score" });
-        }
-        console.log("Score saved successfully:", result.insertId);
-        res.json({ 
-          message: "Score saved successfully!",
-          scoreId: result.insertId
-        });
+  db.query(
+    "INSERT INTO scores (user_id, username, score, level, distance, game_type) VALUES (?, ?, ?, ?, ?, ?)",
+    [req.user.id, req.user.username, score, level, distance, game_type],
+    (err, result) => {
+      if (err) {
+        console.error("Database error saving score:", err);
+        return res.status(500).json({ message: "Failed to save score" });
       }
-    );
-  });
+      console.log("Score saved successfully:", result.insertId);
+      res.json({ 
+        message: "Score saved successfully!",
+        scoreId: result.insertId
+      });
+    }
+  );
 });
 
 // Add a new session (allows guest sessions)
@@ -781,31 +764,6 @@ app.post("/api/sessions", (req, res) => {
     return res.status(400).json({ message: "Valid session data is required" });
   }
 
-  // Check if user exists if authenticated
-  if (userId) {
-    db.query("SELECT id FROM users WHERE id = ?", [userId], (err, results) => {
-      if (err) {
-        console.error("Database error checking user:", err);
-        return res.status(500).json({ message: "Database error" });
-      }
-
-      if (results.length === 0) {
-        // User not found, treat as guest
-        guestUsername = username;
-        userId = null;
-      }
-
-      // Proceed with insert
-      insertSession(userId, guestUsername, username, sessionId, durationSeconds, finalScore, coinsCollected, obstaclesHit, powerupsCollected, distanceTraveled, gameResult, res);
-    });
-  } else {
-    // Guest, proceed directly
-    insertSession(userId, guestUsername, username, sessionId, durationSeconds, finalScore, coinsCollected, obstaclesHit, powerupsCollected, distanceTraveled, gameResult, res);
-  }
-});
-
-// Helper function to insert session
-function insertSession(userId, guestUsername, username, sessionId, durationSeconds, finalScore, coinsCollected, obstaclesHit, powerupsCollected, distanceTraveled, gameResult, res) {
   // Ensure all values are properly set
   const dbUserId = userId; // Allow NULL for guests
   const dbUsername = username || 'Guest';
@@ -839,7 +797,7 @@ function insertSession(userId, guestUsername, username, sessionId, durationSecon
       });
     }
   );
-}
+});
 
 const PORT = process.env.PORT || 5000;
 
