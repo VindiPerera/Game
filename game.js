@@ -17,6 +17,7 @@ class EndlessRunner {
     this.gameState = "start"; // start, playing, catching, paused, gameOver
     this.score = 0;
     this.distance = 0; // Add distance tracking
+    this.isNightMode = false; // Track if night mode is active
     this.highScore = localStorage.getItem("highScore") || 0;
     this.gameSpeed = 7; // Increased from 4 to 6, now to 7
     this.baseGameSpeed = 7; // Increased from 4 to 6, now to 7
@@ -365,6 +366,7 @@ class EndlessRunner {
     this.gameState = "playing";
     this.score = 0;
     this.distance = 0; // Reset distance
+    this.isNightMode = false; // Reset night mode
     this.gameSpeed = 7;
     this.baseGameSpeed = 7;
     this.slowdownTimer = 0;
@@ -4279,6 +4281,11 @@ class EndlessRunner {
         this.distance
       );
       this.updateSessionStats(); // Update session stats with current distance
+
+      // Switch to night mode after 500m and stay there
+      if (this.distance >= 500 && !this.isNightMode) {
+        this.isNightMode = true;
+      }
     }
   }
 
@@ -4519,17 +4526,119 @@ class EndlessRunner {
     this.ctx.fill();
   }
 
+  drawMoon() {
+    const moonX = this.canvas.width - 100; // Position moon on the right side
+    const moonY = 80; // Position moon near the top
+    const moonRadius = 45;
+
+    // Add subtle pulsing animation
+    const pulse = 1 + Math.sin(Date.now() * 0.002) * 0.05;
+    const currentRadius = moonRadius * pulse;
+
+    // Draw outer glow effect - softer and more ethereal
+    const glowGradient = this.ctx.createRadialGradient(
+      moonX,
+      moonY,
+      currentRadius,
+      moonX,
+      moonY,
+      currentRadius + 30
+    );
+    glowGradient.addColorStop(0, "rgba(255, 255, 255, 0.2)");
+    glowGradient.addColorStop(0.5, "rgba(173, 216, 230, 0.15)");
+    glowGradient.addColorStop(1, "rgba(173, 216, 230, 0)");
+
+    this.ctx.fillStyle = glowGradient;
+    this.ctx.beginPath();
+    this.ctx.arc(moonX, moonY, currentRadius + 30, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Draw moon body with gradient
+    const moonGradient = this.ctx.createRadialGradient(
+      moonX - currentRadius * 0.4,
+      moonY - currentRadius * 0.4,
+      0,
+      moonX,
+      moonY,
+      currentRadius
+    );
+    moonGradient.addColorStop(0, "#F5F5F5"); // Bright white center
+    moonGradient.addColorStop(0.3, "#E8E8E8"); // Light gray
+    moonGradient.addColorStop(0.7, "#D3D3D3"); // Medium gray
+    moonGradient.addColorStop(1, "#A9A9A9"); // Dark gray at edges
+
+    this.ctx.fillStyle = moonGradient;
+    this.ctx.beginPath();
+    this.ctx.arc(moonX, moonY, currentRadius, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Add moon surface details - craters
+    this.ctx.fillStyle = "rgba(169, 169, 169, 0.6)";
+
+    // Larger craters with better positioning
+    const craters = [
+      { x: -12, y: -10, r: 8 },
+      { x: 15, y: 8, r: 6 },
+      { x: -8, y: 18, r: 5 },
+      { x: 10, y: -15, r: 4 },
+      { x: -18, y: 5, r: 3 },
+      { x: 5, y: 12, r: 4 },
+      { x: -15, y: -5, r: 3 },
+    ];
+
+    craters.forEach((crater) => {
+      this.ctx.beginPath();
+      this.ctx.arc(moonX + crater.x, moonY + crater.y, crater.r, 0, Math.PI * 2);
+      this.ctx.fill();
+    });
+
+    // Add some subtle rim lighting effect
+    const rimGradient = this.ctx.createRadialGradient(
+      moonX - currentRadius * 0.3,
+      moonY - currentRadius * 0.3,
+      0,
+      moonX - currentRadius * 0.3,
+      moonY - currentRadius * 0.3,
+      currentRadius * 0.6
+    );
+    rimGradient.addColorStop(0, "rgba(255, 255, 255, 0.3)");
+    rimGradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+
+    this.ctx.fillStyle = rimGradient;
+    this.ctx.beginPath();
+    this.ctx.arc(
+      moonX - currentRadius * 0.3,
+      moonY - currentRadius * 0.3,
+      currentRadius * 0.6,
+      0,
+      Math.PI * 2
+    );
+    this.ctx.fill();
+  }
+
   draw() {
     // Clear canvas with forest background
     let gradient = this.ctx.createLinearGradient(0, 0, 0, this.canvas.height);
-    gradient.addColorStop(0, "#87CEEB");
-    gradient.addColorStop(0.7, "#98FB98");
-    gradient.addColorStop(1, "#228B22");
+    if (this.isNightMode) {
+      // Night mode: dark sky with deep blues and blacks
+      gradient.addColorStop(0, "#191970"); // Dark midnight blue
+      gradient.addColorStop(0.7, "#2F4F4F"); // Dark slate gray
+      gradient.addColorStop(1, "#000000"); // Black ground
+    } else {
+      // Day mode: light sky with greens
+      gradient.addColorStop(0, "#87CEEB");
+      gradient.addColorStop(0.7, "#98FB98");
+      gradient.addColorStop(1, "#228B22");
+    }
     this.ctx.fillStyle = gradient;
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Draw sun
-    this.drawSun();
+    // Draw sun or moon based on time of day
+    if (this.isNightMode) {
+      this.drawMoon();
+    } else {
+      this.drawSun();
+    }
 
     // Hit flash effect
     if (this.hitFlash && this.hitFlash > 0) {
