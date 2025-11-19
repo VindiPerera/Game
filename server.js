@@ -544,6 +544,7 @@ app.get("/history", checkAuth, (req, res) => {
   db.query(
     `SELECT 
             u.username,
+            gs.session_id,
             gs.id AS game_id,
             gs.final_score,
             gs.duration_seconds,
@@ -748,8 +749,10 @@ app.post("/api/sessions", (req, res) => {
     console.log("Saving guest session with ID:", guestUsername);
   }
 
+  // Generate a 7-digit session ID
+  const generateSessionId = () => Math.floor(1000000 + Math.random() * 9000000).toString();
+
   const {
-    sessionId,
     durationSeconds,
     finalScore,
     coinsCollected,
@@ -759,7 +762,10 @@ app.post("/api/sessions", (req, res) => {
     gameResult
   } = req.body;
 
-  if (!sessionId || !durationSeconds || finalScore === undefined) {
+  // Always generate a new 7-digit session ID
+  const sessionId = generateSessionId();
+
+  if (!durationSeconds || finalScore === undefined) {
     console.log("Invalid session data:", req.body);
     return res.status(400).json({ message: "Valid session data is required" });
   }

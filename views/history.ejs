@@ -39,7 +39,7 @@
     <table class="table bg-white rounded shadow-sm">
         <thead class="table-light">
             <tr>
-                <th>GameId</th>
+                <th>Id</th>
                 <th>Coins</th>
                 <th>Duration</th>
                 <th>Hits</th>
@@ -53,7 +53,7 @@
         <tbody>
             <% history.forEach(session => { %>
                 <tr>
-                    <td><%= session.game_id %></td>
+                    <td><%= session.session_id %></td>
 
 
                     <td class="text-danger fw-bold">
