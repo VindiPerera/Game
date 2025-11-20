@@ -252,6 +252,200 @@ app.post("/auth/logout", (req, res) => {
   res.redirect('/');
 });
 
+// Settings page route (requires authentication)
+app.get("/settings", checkAuth, (req, res) => {
+  if (!req.user) {
+    return res.redirect('/login');
+  }
+
+  // Get current user data from database
+  db.query("SELECT * FROM users WHERE id = ?", [req.user.id], (err, results) => {
+    if (err) {
+      console.error("Database error:", err);
+      return res.redirect('/');
+    }
+
+    if (results.length === 0) {
+      return res.redirect('/login');
+    }
+
+    // Handle success and error messages from URL parameters
+    let success = req.query.success || null;
+    let passwordError = null;
+    let emailError = null;
+    let payoutError = null;
+
+    if (req.query.error === 'password') {
+      passwordError = req.query.msg || 'An error occurred';
+    } else if (req.query.error === 'email') {
+      emailError = req.query.msg || 'An error occurred';
+    } else if (req.query.error === 'payout') {
+      payoutError = req.query.msg || 'An error occurred';
+    }
+
+    res.render('settings', {
+      title: 'Settings',
+      user: results[0],
+      success: success,
+      passwordError: passwordError,
+      emailError: emailError,
+      payoutError: payoutError
+    });
+  });
+});
+
+// Handle password change
+app.post("/settings/password", checkAuth, async (req, res) => {
+  if (!req.user) {
+    return res.redirect('/login');
+  }
+
+  const { currentPassword, newPassword, confirmNewPassword } = req.body;
+
+  // Validation
+  if (!currentPassword || !newPassword || !confirmNewPassword) {
+    return res.redirect('/settings?error=password&msg=All fields are required');
+  }
+
+  if (newPassword !== confirmNewPassword) {
+    return res.redirect('/settings?error=password&msg=New passwords do not match');
+  }
+
+  if (newPassword.length < 6) {
+    return res.redirect('/settings?error=password&msg=Password must be at least 6 characters');
+  }
+
+  try {
+    // Get current user data
+    db.query("SELECT * FROM users WHERE id = ?", [req.user.id], async (err, results) => {
+      if (err || results.length === 0) {
+        return res.redirect('/settings?error=password&msg=User not found');
+      }
+
+      const user = results[0];
+
+      // Verify current password
+      const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isCurrentPasswordValid) {
+        return res.redirect('/settings?error=password&msg=Current password is incorrect');
+      }
+
+      // Hash new password
+      const saltRounds = 10;
+      const hashedNewPassword = await bcrypt.hash(newPassword, saltRounds);
+
+      // Update password in database
+      db.query(
+        "UPDATE users SET password = ? WHERE id = ?",
+        [hashedNewPassword, req.user.id],
+        (err) => {
+          if (err) {
+            console.error("Database error:", err);
+            return res.redirect('/settings?error=password&msg=Failed to update password');
+          }
+
+          res.redirect('/settings?success=Password updated successfully');
+        }
+      );
+    });
+  } catch (error) {
+    console.error("Password change error:", error);
+    res.redirect('/settings?error=password&msg=Server error occurred');
+  }
+});
+
+// Handle email change
+app.post("/settings/email", checkAuth, async (req, res) => {
+  if (!req.user) {
+    return res.redirect('/login');
+  }
+
+  const { newEmail, password } = req.body;
+
+  // Validation
+  if (!newEmail || !password) {
+    return res.redirect('/settings?error=email&msg=All fields are required');
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(newEmail)) {
+    return res.redirect('/settings?error=email&msg=Please enter a valid email address');
+  }
+
+  try {
+    // Get current user data
+    db.query("SELECT * FROM users WHERE id = ?", [req.user.id], async (err, results) => {
+      if (err || results.length === 0) {
+        return res.redirect('/settings?error=email&msg=User not found');
+      }
+
+      const user = results[0];
+
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        return res.redirect('/settings?error=email&msg=Incorrect password');
+      }
+
+      // Check if email already exists
+      db.query("SELECT * FROM users WHERE email = ? AND id != ?", [newEmail, req.user.id], (err, emailResults) => {
+        if (err) {
+          return res.redirect('/settings?error=email&msg=Database error occurred');
+        }
+
+        if (emailResults.length > 0) {
+          return res.redirect('/settings?error=email&msg=Email already exists');
+        }
+
+        // Update email in database
+        db.query(
+          "UPDATE users SET email = ? WHERE id = ?",
+          [newEmail, req.user.id],
+          (err) => {
+            if (err) {
+              console.error("Database error:", err);
+              return res.redirect('/settings?error=email&msg=Failed to update email');
+            }
+
+            res.redirect('/settings?success=Email updated successfully');
+          }
+        );
+      });
+    });
+  } catch (error) {
+    console.error("Email change error:", error);
+    res.redirect('/settings?error=email&msg=Server error occurred');
+  }
+});
+
+// Handle payout settings update
+app.post("/settings/payout", checkAuth, (req, res) => {
+  if (!req.user) {
+    return res.redirect('/login');
+  }
+
+  const { payoutDetails } = req.body;
+
+  // Validation
+  if (!payoutDetails || payoutDetails.trim().length < 10) {
+    return res.redirect('/settings?error=payout&msg=Please provide detailed payout information');
+  }
+
+  // Update payout details in database
+  db.query(
+    "UPDATE users SET payout_details = ? WHERE id = ?",
+    [payoutDetails.trim(), req.user.id],
+    (err) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.redirect('/settings?error=payout&msg=Failed to update payout settings');
+      }
+
+      res.redirect('/settings?success=Payout settings updated successfully');
+    }
+  );
+});
+
 // Game route (allows guest access)
 app.get("/game", checkAuth, (req, res) => {
   // Allow guest access if guest=true parameter is present
@@ -406,115 +600,72 @@ app.get("/winners", checkAuth, (req, res) => {
     "font-src 'self' https://cdn.jsdelivr.net data:; " +
     "connect-src 'self'"
   );
-  
-  // Get date parameter from query string, default to yesterday
-  const selectedDate = req.query.date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  
-  // First get guest mapping
-  db.query(
-    `SELECT guest_username, 
-            ROW_NUMBER() OVER (ORDER BY MIN(created_at)) as guest_number
-     FROM game_sessions 
-     WHERE guest_username IS NOT NULL 
-     GROUP BY guest_username`,
-    (err, guestMappings) => {
-      if (err) {
-        console.error("Database error:", err);
-        return res.render('winners', {
-          title: 'Game Winners',
-          winners: [],
-          selectedDate: selectedDate,
-          user: req.user,
-          error: 'Failed to load winners data'
-        });
-      }
-      
-      // Create a mapping object
-      const guestMap = {};
-      guestMappings.forEach(mapping => {
-        guestMap[mapping.guest_username] = mapping.guest_number;
-      });
-      
-      const query = `
-        SELECT 
-                ranked_sessions.username,
-                ranked_sessions.score,
-                ranked_sessions.duration_seconds,
-                ranked_sessions.coins_collected,
-                ranked_sessions.obstacles_hit,
-                ranked_sessions.powerups_collected,
-                ranked_sessions.distance_traveled,
-                ranked_sessions.game_result,
-                ranked_sessions.created_at,
-                ranked_sessions.user_id,
-                ranked_sessions.guest_username
-         FROM (
-           SELECT 
-                CASE 
-                  WHEN u.username IS NOT NULL THEN u.username 
-                  WHEN gs.guest_username IS NOT NULL THEN gs.guest_username
-                  ELSE 'Guest' 
-                END as username,
-                gs.final_score as score,
-                gs.duration_seconds,
-                gs.coins_collected,
-                gs.obstacles_hit,
-                gs.powerups_collected,
-                gs.distance_traveled,
-                gs.game_result,
-                gs.created_at,
-                gs.user_id,
-                gs.guest_username,
-                gs.id,
-                ROW_NUMBER() OVER (
-                  PARTITION BY 
-                    CASE 
-                      WHEN gs.user_id IS NOT NULL THEN CONCAT('user_', gs.user_id)
-                      WHEN gs.guest_username IS NOT NULL THEN CONCAT('guest_', gs.guest_username)
-                      ELSE CONCAT('unknown_', gs.id)
-                    END
-                  ORDER BY gs.final_score DESC, gs.created_at DESC
-                ) as rn
-           FROM game_sessions gs
-           LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
-           WHERE DATE(gs.created_at) = ?
-         ) ranked_sessions
-         WHERE ranked_sessions.rn = 1
-         ORDER BY ranked_sessions.score DESC 
-         LIMIT 3`;
 
-      db.query(query, [selectedDate], (err, results) => {
-        if (err) {
-          console.error("Database error:", err);
-          return res.render('winners', {
-            title: 'Game Winners',
-            winners: [],
-            selectedDate: selectedDate,
-            user: req.user,
-            error: 'Failed to load winners data'
-          });
-        }
-        
-        // Transform guest usernames to friendly format
-        const transformedResults = results.map(result => {
-          if (result.guest_username) {
-            // Since guest_username is now stored as simple numbers (1, 2, 3), 
-            // display them as just the numbers without Guest_ prefix
-            result.username = result.guest_username;
-          }
-          return result;
-        });
-        
-        res.render('winners', {
-          title: 'Game Winners',
-          winners: transformedResults,
-          selectedDate: selectedDate,
-          user: req.user,
-          error: null
-        });
+  // Get date parameter from query string, default to yesterday in Sri Lankan timezone
+  const selectedDate = req.query.date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  const query = `
+    SELECT 
+            ranked_sessions.username,
+            ranked_sessions.score,
+            ranked_sessions.duration_seconds,
+            ranked_sessions.coins_collected,
+            ranked_sessions.obstacles_hit,
+            ranked_sessions.powerups_collected,
+            ranked_sessions.distance_traveled,
+            ranked_sessions.game_result,
+            ranked_sessions.created_at,
+            ranked_sessions.user_id
+     FROM (
+       SELECT 
+            u.username as username,
+            gs.final_score as score,
+            gs.duration_seconds,
+            gs.coins_collected,
+            gs.obstacles_hit,
+            gs.powerups_collected,
+            gs.distance_traveled,
+            gs.game_result,
+            gs.created_at,
+            gs.user_id,
+            gs.id,
+            ROW_NUMBER() OVER (
+              PARTITION BY 
+                CASE 
+                  WHEN gs.user_id IS NOT NULL THEN CONCAT('user_', gs.user_id)
+                  ELSE CONCAT('unknown_', gs.id)
+                END
+              ORDER BY gs.final_score DESC, gs.created_at DESC
+            ) as rn
+       FROM game_sessions gs
+       LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
+       WHERE DATE(CONVERT_TZ(gs.created_at, '+00:00', '+05:30')) = ?
+         AND gs.user_id IS NOT NULL
+     ) ranked_sessions
+     WHERE ranked_sessions.rn = 1
+     ORDER BY ranked_sessions.score DESC 
+     LIMIT 3`;
+
+  db.query(query, [selectedDate], (err, results) => {
+    if (err) {
+      console.error("Database error:", err);
+      return res.render('winners', {
+        title: 'Game Winners',
+        winners: [],
+        selectedDate: selectedDate,
+        user: req.user,
+        error: 'Failed to load winners data'
       });
     }
-  );
+
+    res.render('winners', {
+      title: 'Game Winners',
+      winners: results,
+      selectedDate: selectedDate,
+      user: req.user,
+      error: null
+    });
+  });
 });
 
 // Wiki route

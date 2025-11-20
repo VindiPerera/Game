@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px 0;
+            min-height: 100vh;
+        }
+
+        .settings-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .settings-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+
+        .settings-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .settings-header h1 {
+            color: #333;
+            margin: 0 0 10px 0;
+            font-size: 32px;
+            font-weight: 600;
+        }
+
+        .settings-header p {
+            color: #666;
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .settings-section {
+            margin-bottom: 40px;
+            padding: 30px;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+
+        .section-title {
+            color: #333;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            margin-right: 12px;
+            border-radius: 2px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group input.error,
+        .form-group textarea.error {
+            border-color: #e74c3c;
+        }
+
+        .error-message {
+            color: #e74c3c;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .success-message {
+            color: #27ae60;
+            font-size: 14px;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .settings-button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-top: 10px;
+        }
+
+        .settings-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+
+        .settings-button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .back-link:hover {
+            color: #764ba2;
+        }
+
+        .payout-info {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #1565c0;
+        }
+
+        .payout-info h4 {
+            margin: 0 0 10px 0;
+            color: #0d47a1;
+        }
+
+        .payout-info ul {
+            margin: 10px 0 0 0;
+            padding-left: 20px;
+        }
+
+        .payout-info li {
+            margin-bottom: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .settings-container {
+                margin: 0 20px;
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="settings-container">
+        <a href="/" class="back-link">← Back to Home</a>
+
+        <div class="settings-header">
+            <h1><%= title %></h1>
+            <p>Manage your account settings and preferences</p>
+        </div>
+
+        <% if (typeof success !== 'undefined' && success) { %>
+            <div class="success-message show">
+                <%= success %>
+            </div>
+        <% } %>
+
+        <!-- Change Password Section -->
+        <div class="settings-section">
+            <h2 class="section-title">Change Password</h2>
+            <% if (typeof passwordError !== 'undefined' && passwordError) { %>
+                <div class="error-message show">
+                    <%= passwordError %>
+                </div>
+            <% } %>
+            <form id="passwordForm" action="/settings/password" method="POST">
+                <div class="form-group">
+                    <label for="currentPassword">Current Password</label>
+                    <input type="password" id="currentPassword" name="currentPassword" required placeholder="Enter your current password">
+                    <div class="error-message" id="currentPasswordError"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="newPassword">New Password</label>
+                    <input type="password" id="newPassword" name="newPassword" required placeholder="Enter new password" minlength="6">
+                    <div class="error-message" id="newPasswordError"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmNewPassword">Confirm New Password</label>
+                    <input type="password" id="confirmNewPassword" name="confirmNewPassword" required placeholder="Confirm new password">
+                    <div class="error-message" id="confirmNewPasswordError"></div>
+                </div>
+
+                <button type="submit" class="settings-button" id="passwordButton">
+                    Update Password
+                </button>
+            </form>
+        </div>
+
+        <!-- Change Email Section -->
+        <div class="settings-section">
+            <h2 class="section-title">Change Email</h2>
+            <% if (typeof emailError !== 'undefined' && emailError) { %>
+                <div class="error-message show">
+                    <%= emailError %>
+                </div>
+            <% } %>
+            <form id="emailForm" action="/settings/email" method="POST">
+                <div class="form-group">
+                    <label for="currentEmail">Current Email</label>
+                    <input type="email" id="currentEmail" value="<%= user.email %>" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label for="newEmail">New Email</label>
+                    <input type="email" id="newEmail" name="newEmail" required placeholder="Enter new email address">
+                    <div class="error-message" id="newEmailError"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="emailPassword">Password Confirmation</label>
+                    <input type="password" id="emailPassword" name="password" required placeholder="Enter your password to confirm">
+                    <div class="error-message" id="emailPasswordError"></div>
+                </div>
+
+                <button type="submit" class="settings-button" id="emailButton">
+                    Update Email
+                </button>
+            </form>
+        </div>
+
+        <!-- Payout Settings Section -->
+        <div class="settings-section">
+            <h2 class="section-title">Payout Settings</h2>
+            <% if (typeof payoutError !== 'undefined' && payoutError) { %>
+                <div class="error-message show">
+                    <%= payoutError %>
+                </div>
+            <% } %>
+            
+            <div class="payout-info">
+                <h4>Payout Information</h4>
+                <p>Enter your preferred payout method details below. You can provide:</p>
+                <ul>
+                    <li><strong>Bank Details:</strong> Bank name, account number, routing number, account holder name</li>
+                    <li><strong>Cryptocurrency Address:</strong> Bitcoin, Ethereum, or other supported crypto addresses</li>
+                    <li><strong>PayPal:</strong> Your PayPal email address</li>
+                    <li><strong>Other:</strong> Any other payment method details</li>
+                </ul>
+            </div>
+
+            <form id="payoutForm" action="/settings/payout" method="POST">
+                <div class="form-group">
+                    <label for="payoutDetails">Payout Details</label>
+                    <textarea id="payoutDetails" name="payoutDetails" placeholder="Enter your bank details, crypto addresses, or other payout information...
+Example:
+Bank: Chase Bank
+Account: 1234567890
+Routing: 021000021
+Name: John Smith
+
+OR
+
+Bitcoin Address: 1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2
+Ethereum Address: 0x742d35Cc6634C0532925a3b8D40E6e5118d0a317
+
+OR
+
+PayPal: user@example.com"><%= user.payout_details || '' %></textarea>
+                    <div class="error-message" id="payoutDetailsError"></div>
+                </div>
+
+                <button type="submit" class="settings-button" id="payoutButton">
+                    Update Payout Settings
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Password form validation
+        document.getElementById('passwordForm').addEventListener('submit', function(e) {
+            const currentPassword = document.getElementById('currentPassword').value.trim();
+            const newPassword = document.getElementById('newPassword').value.trim();
+            const confirmPassword = document.getElementById('confirmNewPassword').value.trim();
+            let isValid = true;
+
+            // Reset errors
+            document.querySelectorAll('#passwordForm .error-message').forEach(el => el.classList.remove('show'));
+            document.querySelectorAll('#passwordForm input').forEach(el => el.classList.remove('error'));
+
+            // Current password validation
+            if (!currentPassword) {
+                showError('currentPassword', 'Current password is required');
+                isValid = false;
+            }
+
+            // New password validation
+            if (!newPassword) {
+                showError('newPassword', 'New password is required');
+                isValid = false;
+            } else if (newPassword.length < 6) {
+                showError('newPassword', 'Password must be at least 6 characters');
+                isValid = false;
+            }
+
+            // Confirm password validation
+            if (!confirmPassword) {
+                showError('confirmNewPassword', 'Please confirm your new password');
+                isValid = false;
+            } else if (newPassword !== confirmPassword) {
+                showError('confirmNewPassword', 'Passwords do not match');
+                isValid = false;
+            }
+
+            if (!isValid) {
+                e.preventDefault();
+            } else {
+                document.getElementById('passwordButton').disabled = true;
+                document.getElementById('passwordButton').textContent = 'Updating...';
+            }
+        });
+
+        // Email form validation
+        document.getElementById('emailForm').addEventListener('submit', function(e) {
+            const newEmail = document.getElementById('newEmail').value.trim();
+            const password = document.getElementById('emailPassword').value.trim();
+            let isValid = true;
+
+            // Reset errors
+            document.querySelectorAll('#emailForm .error-message').forEach(el => el.classList.remove('show'));
+            document.querySelectorAll('#emailForm input').forEach(el => el.classList.remove('error'));
+
+            // Email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!newEmail) {
+                showError('newEmail', 'Email is required');
+                isValid = false;
+            } else if (!emailRegex.test(newEmail)) {
+                showError('newEmail', 'Please enter a valid email address');
+                isValid = false;
+            }
+
+            // Password validation
+            if (!password) {
+                showError('emailPassword', 'Password is required to confirm email change');
+                isValid = false;
+            }
+
+            if (!isValid) {
+                e.preventDefault();
+            } else {
+                document.getElementById('emailButton').disabled = true;
+                document.getElementById('emailButton').textContent = 'Updating...';
+            }
+        });
+
+        // Payout form validation
+        document.getElementById('payoutForm').addEventListener('submit', function(e) {
+            const payoutDetails = document.getElementById('payoutDetails').value.trim();
+            let isValid = true;
+
+            // Reset errors
+            document.querySelectorAll('#payoutForm .error-message').forEach(el => el.classList.remove('show'));
+            document.querySelectorAll('#payoutForm textarea').forEach(el => el.classList.remove('error'));
+
+            // Payout details validation
+            if (!payoutDetails) {
+                showError('payoutDetails', 'Payout details are required');
+                isValid = false;
+            } else if (payoutDetails.length < 10) {
+                showError('payoutDetails', 'Please provide more detailed payout information');
+                isValid = false;
+            }
+
+            if (!isValid) {
+                e.preventDefault();
+            } else {
+                document.getElementById('payoutButton').disabled = true;
+                document.getElementById('payoutButton').textContent = 'Updating...';
+            }
+        });
+
+        // Helper function to show errors
+        function showError(fieldId, message) {
+            const field = document.getElementById(fieldId);
+            const errorElement = document.getElementById(fieldId + 'Error');
+            
+            if (field && errorElement) {
+                field.classList.add('error');
+                errorElement.textContent = message;
+                errorElement.classList.add('show');
+            }
+        }
+
+        // Clear errors on input
+        document.querySelectorAll('input, textarea').forEach(input => {
+            input.addEventListener('input', function() {
+                this.classList.remove('error');
+                const errorElement = document.getElementById(this.id + 'Error');
+                if (errorElement) {
+                    errorElement.classList.remove('show');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
