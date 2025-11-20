@@ -1093,8 +1093,8 @@ class EndlessRunner {
       this.monster = {
         x: -100, // Spawn further left (increased gap from 0 to -200)
         y: this.ground - 80,
-        width: 100,
-        height: 380,
+        width: 150, // Increased from 100 to 150 (50% bigger)
+        height: 570, // Increased from 380 to 570 (50% bigger)
         baseSpeed: 3.0, // Increased from 2.0 to 3.0
         speed: 3.0,
         frame: 0,
@@ -1308,98 +1308,7 @@ class EndlessRunner {
   updateMonster() {
     if (!this.monster) return;
 
-    // Monster copies player movements when obstacles come
-    // Check for incoming obstacles relative to monster position
-    let shouldJump = false;
-    let shouldSlide = false;
-
-    // Check gaps/pits - monster must jump over them
-    for (let gap of this.gaps) {
-      const distanceToMonster = gap.x - this.monster.x;
-      // Check if gap is approaching
-      if (distanceToMonster > 0 && distanceToMonster < 200) {
-        shouldJump = true;
-        break;
-      }
-    }
-
-    // Check ground obstacles
-    if (!shouldJump) {
-      for (let obstacle of this.obstacles) {
-        const distanceToMonster = obstacle.x - this.monster.x;
-        if (distanceToMonster > 0 && distanceToMonster < 150) {
-          shouldJump = true;
-          break;
-        }
-      }
-    }
-
-    // Check fire traps - monster jumps over active ones
-    if (!shouldJump) {
-      for (let trap of this.fireTraps) {
-        const distanceToMonster = trap.x - this.monster.x;
-        if (trap.active && distanceToMonster > 0 && distanceToMonster < 150) {
-          shouldJump = true;
-          break;
-        }
-      }
-    }
-
-    // Check fire traps - monster jumps over active ones
-    if (!shouldJump) {
-      for (let trap of this.fireTraps) {
-        const distanceToMonster = trap.x - this.monster.x;
-        if (trap.active && distanceToMonster > 0 && distanceToMonster < 150) {
-          shouldJump = true;
-          break;
-        }
-      }
-    }
-
-    // Check birds - monster slides under them
-    if (!shouldSlide && !shouldJump) {
-      for (let bird of this.birds) {
-        const distanceToMonster = bird.x - this.monster.x;
-        if (distanceToMonster > 0 && distanceToMonster < 150) {
-          shouldSlide = true;
-          break;
-        }
-      }
-    }
-
-    // Execute jump
-    if (shouldJump && !this.monster.jumping) {
-      this.monster.velocityY = -12;
-      this.monster.jumping = true;
-    }
-
-    // Execute slide
-    if (shouldSlide && !this.monster.sliding) {
-      this.monster.sliding = true;
-      this.monster.slideTimer = 20;
-    }
-
-    // Handle monster sliding
-    if (this.monster.sliding) {
-      this.monster.slideTimer--;
-      if (this.monster.slideTimer <= 0) {
-        this.monster.sliding = false;
-      }
-    }
-
-    // Handle monster jumping physics
-    if (this.monster.jumping) {
-      this.monster.velocityY += 0.5; // Gravity
-      this.monster.y += this.monster.velocityY;
-
-      // Ground collision
-      if (this.monster.y >= this.ground - 80) {
-        this.monster.y = this.ground - 80;
-        this.monster.velocityY = 0;
-        this.monster.jumping = false;
-      }
-    }
-
+    // Ghost behavior - no obstacle avoidance, just floats and follows player
     // Calculate distance to player
     let distanceToPlayer = Math.abs(this.monster.x - this.player.x);
 
@@ -1440,25 +1349,21 @@ class EndlessRunner {
       this.monster.x = this.canvas.width - this.monster.width - 50;
     }
 
-    // Vertical following - only when not jumping
-    if (!this.monster.jumping) {
-      let verticalDistance = Math.abs(this.monster.y - this.player.y);
-      let verticalChaseDistance = Math.max(20, 50 - hitCount * 10); // Increased from 35 to 50 pixels, minimum increased from 10 to 20
-      let verticalDeadZone = 5; // Add dead zone for vertical movement too
+    // Vertical floating - ghost follows player vertically but doesn't jump
+    let verticalDistance = Math.abs(this.monster.y - this.player.y);
+    let verticalChaseDistance = Math.max(20, 50 - hitCount * 10); // Increased from 35 to 50 pixels, minimum increased from 10 to 20
+    let verticalDeadZone = 5; // Add dead zone for vertical movement too
 
-      if (
-        this.monster.y >
-          this.player.y + verticalChaseDistance + verticalDeadZone &&
-        this.monster.y > this.ground - 80
-      ) {
-        this.monster.y -= 2;
-      } else if (
-        this.monster.y <
-          this.player.y - verticalChaseDistance - verticalDeadZone &&
-        this.monster.y < this.ground - 80
-      ) {
-        this.monster.y += 2;
-      }
+    if (
+      this.monster.y >
+        this.player.y + verticalChaseDistance + verticalDeadZone
+    ) {
+      this.monster.y -= 2;
+    } else if (
+      this.monster.y <
+        this.player.y - verticalChaseDistance - verticalDeadZone
+    ) {
+      this.monster.y += 2;
     }
 
     // Monster speed increases progressively with each hit
@@ -1470,14 +1375,13 @@ class EndlessRunner {
       this.monster.speed = this.monster.baseSpeed * baseSpeedMultiplier;
     }
 
-    // Animation
-    this.monster.frame += 0.3;
-    if (this.monster.frame >= 4) this.monster.frame = 0;
+    // Ghost floating animation - subtle ethereal movement
+    this.monster.frame += 0.1; // Much slower for floating effect
+    if (this.monster.frame >= Math.PI * 2) this.monster.frame = 0;
 
     // Monster can only catch player after 3 obstacle hits in recent time
     let deadlyHitThreshold = 3;
 
-    let verticalDistance = Math.abs(this.monster.y - this.player.y);
     if (
       distanceToPlayer < this.monster.catchDistance &&
       verticalDistance < 30
@@ -3956,195 +3860,55 @@ class EndlessRunner {
     let isDeadly = this.hitTimestamps && this.hitTimestamps.length >= 3;
     const mx = monster.x;
     const my = monster.y;
-    const bounce = Math.sin(monster.frame * 1.5) * 6;
-    const breathe = Math.sin(monster.frame * 0.8) * 3;
+    const time = Date.now() * 0.001;
+    const float = Math.sin(monster.frame + time * 0.5) * 3; // Gentle floating motion
+    const breathe = Math.sin(monster.frame * 0.8 + time * 0.7) * 4;
+    const drift = Math.sin(time * 0.5) * 3; // Slow horizontal drift
 
-    // Draw monster shadow (bigger) - REMOVED
-    // this.ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
-    // this.ctx.fillRect(mx - 4, this.ground - 3, monster.width + 8, 6);
+    // Save context for ghost effects
+    this.ctx.save();
 
-    // Monster body - always use level 1 appearance
-    // Temple monster - red/dark
+    // Enhanced outer glow effect for the entire ghost
+    this.drawGhostOuterGlow(mx, my, time, isDeadly);
+
+    // Draw terrifying particles around the ghost for horror atmosphere
+    this.drawGhostParticles(mx, my, isDeadly);
+
+    // Draw dark aura and shadow effects for added scariness
+    this.drawGhostAura(mx, my, time, isDeadly);
+
+    // Draw floating chains for horror effect
+    this.drawGhostChains(mx, my, time, isDeadly);
+
+    // Draw dark mist particles
+    this.drawGhostMist(mx, my, time, isDeadly);
+
+    // Main ghost body - now with jagged, terrifying edges and enhanced glow
+    this.drawGhostBody(mx + drift, my + float, breathe, isDeadly);
+
+    // Internal swirling darkness effect
+    this.drawGhostInterior(mx + drift, my + float, breathe, time, isDeadly);
+
+    // Face features with horrifying ghost appearance
+    this.drawGhostFace(mx + drift, my + float, breathe, isDeadly);
+
+    // Draw glowing red eyes when deadly
     if (isDeadly) {
-      this.ctx.fillStyle = this.slowdownTimer > 0 ? "#1A0000" : "#2D1B1B";
-    } else {
-      this.ctx.fillStyle = this.slowdownTimer > 0 ? "#4A1515" : "#7F2020";
+      this.drawGhostRedEyes(mx + drift, my + float, breathe, time);
     }
 
-    // Main body (irregular shape) - scaled proportionally
-    this.ctx.beginPath();
-    this.ctx.moveTo(mx + 8, my + 25 + bounce);
-    this.ctx.lineTo(mx + 52, my + 25 + bounce);
-    this.ctx.lineTo(mx + 55, my + 55 + bounce);
-    this.ctx.lineTo(mx + 48, my + 72 + bounce);
-    this.ctx.lineTo(mx + 12, my + 72 + bounce);
-    this.ctx.lineTo(mx + 5, my + 55 + bounce);
-    this.ctx.closePath();
-    this.ctx.fill();
-
-    // Monster head (larger and more menacing) - always use level 1 appearance
-    if (isDeadly) {
-      this.ctx.fillStyle = this.slowdownTimer > 0 ? "#000000" : "#1A0A0A";
-    } else {
-      this.ctx.fillStyle = this.slowdownTimer > 0 ? "#2D0000" : "#450A0A";
-    }
-
-    // Head shape (skull-like side profile) - scaled up
-    this.ctx.beginPath();
-    this.ctx.ellipse(
-      mx + 32,
-      my + 13 + bounce + breathe,
-      28,
-      19,
-      0,
-      0,
-      Math.PI * 2
-    );
-    this.ctx.fill();
-
-    // Monster horns/spikes (facing right) - always use level 1 appearance
-    this.ctx.fillStyle = isDeadly ? "#800000" : "#600000";
-    this.ctx.beginPath();
-    this.ctx.moveTo(mx + 20, my + 3 + bounce);
-    this.ctx.lineTo(mx + 24, my - 8 + bounce);
-    this.ctx.lineTo(mx + 30, my + 5 + bounce);
-    this.ctx.closePath();
-    this.ctx.fill();
-
-    this.ctx.beginPath();
-    this.ctx.moveTo(mx + 35, my + 2 + bounce);
-    this.ctx.lineTo(mx + 42, my - 6 + bounce);
-    this.ctx.lineTo(mx + 48, my + 4 + bounce);
-    this.ctx.closePath();
-    this.ctx.fill();
-
-    // Snout/muzzle (side profile)
-    this.ctx.fillStyle = isDeadly ? "#1A0505" : "#3D0A0A";
-    this.ctx.beginPath();
-    this.ctx.ellipse(
-      mx + 50,
-      my + 18 + bounce + breathe,
-      12,
-      8,
-      0,
-      0,
-      Math.PI * 2
-    );
-    this.ctx.fill();
-
-    // Monster arms/claws - always use level 1 appearance
-    this.ctx.fillStyle = isDeadly ? "#2D0505" : "#4A1010";
-    const armSwing = Math.sin(monster.frame * 1.2) * 5;
-
-    // Left arm
-    this.ctx.beginPath();
-    this.ctx.roundRect(mx + 3 + armSwing, my + 30 + bounce, 14, 32, 3);
-    this.ctx.fill();
-
-    // Right arm
-    this.ctx.beginPath();
-    this.ctx.roundRect(mx + 43 - armSwing, my + 30 + bounce, 14, 32, 3);
-    this.ctx.fill();
-
-    // Claws - bigger and more menacing
-    this.ctx.fillStyle = "#CCCCCC";
-    this.ctx.fillRect(mx + 1 + armSwing, my + 58 + bounce, 5, 10);
-    this.ctx.fillRect(mx + 7 + armSwing, my + 61 + bounce, 5, 7);
-    this.ctx.fillRect(mx + 13 + armSwing, my + 59 + bounce, 5, 9);
-    this.ctx.fillRect(mx + 50 - armSwing, my + 58 + bounce, 5, 10);
-    this.ctx.fillRect(mx + 44 - armSwing, my + 61 + bounce, 5, 7);
-    this.ctx.fillRect(mx + 38 - armSwing, my + 59 + bounce, 5, 9);
-
-    // Monster legs - always use level 1 appearance
-    this.ctx.fillStyle = isDeadly ? "#1A0505" : "#3D0A0A";
-    this.ctx.beginPath();
-    this.ctx.roundRect(mx + 14, my + 67 + bounce, 13, 24, 3);
-    this.ctx.fill();
-    this.ctx.beginPath();
-    this.ctx.roundRect(mx + 33, my + 67 + bounce, 13, 24, 3);
-    this.ctx.fill();
-
-    // Eye - always use level 1 appearance
-    if (isDeadly) {
-      // Deadly monster - bright glowing red eye
-      this.ctx.fillStyle = "#FF0000";
-      this.ctx.shadowColor = "#FF0000";
-      this.ctx.shadowBlur = 15;
-    } else {
-      // Normal monster - yellow/orange eye
-      this.ctx.fillStyle = this.slowdownTimer > 0 ? "#FFD700" : "#FFA500";
-      this.ctx.shadowColor = this.slowdownTimer > 0 ? "#FFD700" : "#FFA500";
-      this.ctx.shadowBlur = 8;
-    }
-
-    // Single visible eye (side profile) - bigger and more menacing
-    this.ctx.beginPath();
-    this.ctx.arc(mx + 42, my + 10 + bounce + breathe, 8, 0, Math.PI * 2);
-    this.ctx.fill();
-
-    // Eye pupil - bigger, slit-like for more menacing look
-    this.ctx.shadowBlur = 0;
-    this.ctx.fillStyle = "#000000";
-    this.ctx.beginPath();
-    this.ctx.ellipse(
-      mx + 42,
-      my + 10 + bounce + breathe,
-      2,
-      4,
-      0,
-      0,
-      Math.PI * 2
-    );
-    this.ctx.fill();
-
-    // Eye reflection
-    this.ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-    this.ctx.beginPath();
-    this.ctx.arc(mx + 43, my + 8 + bounce + breathe, 1.5, 0, Math.PI * 2);
-    this.ctx.fill();
-
-    // Mouth/teeth - side profile, bigger and more menacing
-    this.ctx.fillStyle = "#000000";
-    this.ctx.beginPath();
-    this.ctx.ellipse(mx + 50, my + 20 + bounce + breathe, 8, 4, 0, 0, Math.PI);
-    this.ctx.fill();
-
-    // Teeth - protruding from side profile
-    this.ctx.fillStyle = "#FFFFFF";
-    for (let i = 0; i < 4; i++) {
-      this.ctx.beginPath();
-      this.ctx.moveTo(mx + 44 + i * 4, my + 20 + bounce + breathe);
-      this.ctx.lineTo(mx + 47 + i * 4, my + 14 + bounce + breathe);
-      this.ctx.lineTo(mx + 46 + i * 4, my + 20 + bounce + breathe);
-      this.ctx.closePath();
-      this.ctx.fill();
-    }
-
-    // Large protruding fang
-    this.ctx.beginPath();
-    this.ctx.moveTo(mx + 52, my + 20 + bounce + breathe);
-    this.ctx.lineTo(mx + 58, my + 12 + bounce + breathe);
-    this.ctx.lineTo(mx + 54, my + 20 + bounce + breathe);
-    this.ctx.closePath();
-    this.ctx.fill();
+    // Restore context
+    this.ctx.restore();
 
     // Draw danger indicator when close
     let distanceToPlayer = Math.abs(monster.x - this.player.x);
     if (distanceToPlayer < 120) {
-      if (isDeadly) {
-        // Deadly monster - bright red pulsing line
-        this.ctx.strokeStyle = "#FF0000";
-        this.ctx.lineWidth = 4;
-        this.ctx.setLineDash([6, 2]);
-        this.ctx.shadowColor = "#FF0000";
-        this.ctx.shadowBlur = 6;
-      } else {
-        // Normal chasing - less threatening yellow/orange line
-        this.ctx.strokeStyle = this.slowdownTimer > 0 ? "#FFA500" : "#FFD700";
-        this.ctx.lineWidth = 2;
-        this.ctx.setLineDash([12, 8]);
-        this.ctx.shadowBlur = 2;
-      }
+      // Connection line to player - subtle white line
+      this.ctx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+      this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([8, 6]);
+      this.ctx.shadowBlur = 3;
+      
       this.ctx.beginPath();
       this.ctx.moveTo(monster.x + monster.width / 2, monster.y + 10);
       this.ctx.lineTo(
@@ -4155,39 +3919,412 @@ class EndlessRunner {
       this.ctx.setLineDash([]);
       this.ctx.shadowBlur = 0;
     }
+  }
 
-    // Visual indicators for monster actions
-    if (monster.sliding) {
-      // Sliding dust effect
-      this.ctx.fillStyle = "rgba(220, 20, 60, 0.5)";
-      for (let i = 0; i < 5; i++) {
+  drawGhostParticles(mx, my, isDeadly) {
+    // Draw subtle floating particles - enhanced with more particles and glow
+    const particleCount = isDeadly ? 8 : 5;
+    
+    // Add glow effect to particles
+    if (isDeadly) {
+      this.ctx.shadowColor = "#FF0000";
+      this.ctx.shadowBlur = 8;
+    } else {
+      this.ctx.shadowColor = "#FFFFFF";
+      this.ctx.shadowBlur = 5;
+    }
+    
+    this.ctx.fillStyle = isDeadly ? "rgba(255, 100, 100, 0.4)" : "rgba(255, 255, 255, 0.3)";
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2 + Date.now() * 0.001;
+      const distance = 35 + Math.sin(Date.now() * 0.002 + i) * 12;
+      const px = mx + 32 + Math.cos(angle) * distance;
+      const py = my + 40 + Math.sin(angle) * distance;
+      const size = 0.8 + Math.sin(Date.now() * 0.003 + i * 0.7) * 0.6;
+
+      this.ctx.beginPath();
+      this.ctx.arc(px, py, size, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+    
+    // Add additional sparkling particles for more glow
+    if (isDeadly) {
+      this.ctx.fillStyle = "rgba(255, 200, 200, 0.6)";
+      this.ctx.shadowBlur = 12;
+      
+      for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2 + Date.now() * 0.0015;
+        const distance = 50 + Math.sin(Date.now() * 0.0025 + i) * 15;
+        const px = mx + 32 + Math.cos(angle) * distance;
+        const py = my + 40 + Math.sin(angle) * distance;
+        const size = 0.5 + Math.sin(Date.now() * 0.004 + i * 0.8) * 0.4;
+
         this.ctx.beginPath();
-        this.ctx.arc(
-          mx - i * 8 - Math.random() * 10,
-          this.ground - 5 + Math.random() * 5,
-          2 + Math.random() * 3,
-          0,
-          Math.PI * 2
-        );
+        this.ctx.arc(px, py, size, 0, Math.PI * 2);
         this.ctx.fill();
       }
     }
+    
+    // Reset shadow
+    this.ctx.shadowBlur = 0;
+  }
 
-    if (monster.jumping) {
-      // Jump trail effect
-      this.ctx.fillStyle = "rgba(139, 0, 0, 0.3)";
-      for (let i = 0; i < 3; i++) {
-        this.ctx.beginPath();
-        this.ctx.arc(
-          mx + monster.width / 2,
-          my + monster.height / 2 + i * 15,
-          4 - i,
-          0,
-          Math.PI * 2
-        );
-        this.ctx.fill();
-      }
+  drawGhostBody(mx, my, breathe, isDeadly) {
+    // Main ghost body - white with black outline, matching reference image
+    // Add enhanced glow effect
+    if (isDeadly) {
+      this.ctx.shadowColor = "#FF0000";
+      this.ctx.shadowBlur = 15;
+    } else {
+      this.ctx.shadowColor = "#FFFFFF";
+      this.ctx.shadowBlur = 10;
     }
+    
+    this.ctx.globalAlpha = 1;
+    this.ctx.fillStyle = "#F5F5DC"; // Beige-white
+    this.ctx.lineWidth = 3;
+    this.ctx.strokeStyle = "#000000"; // Black outline
+
+    // Draw main ghost body - round head on top, wider body below
+    this.ctx.beginPath();
+    // Head - rounded top
+    this.ctx.arc(mx + 32, my + 25, 22, Math.PI, 0, false);
+    // Sides down
+    this.ctx.lineTo(mx + 54, my + 25);
+    this.ctx.lineTo(mx + 54, my + 60);
+    
+    // Bottom wavy/pointed edge like traditional sheet ghost
+    const wavePoints = [
+      { x: mx + 54, y: my + 60 },
+      { x: mx + 48, y: my + 70 },
+      { x: mx + 42, y: my + 62 },
+      { x: mx + 36, y: my + 73 },
+      { x: mx + 32, y: my + 65 },
+      { x: mx + 28, y: my + 73 },
+      { x: mx + 22, y: my + 62 },
+      { x: mx + 16, y: my + 70 },
+      { x: mx + 10, y: my + 60 }
+    ];
+    
+    // Draw smooth curves through wave points
+    for (let i = 1; i < wavePoints.length; i++) {
+      const prev = wavePoints[i - 1];
+      const curr = wavePoints[i];
+      const midX = (prev.x + curr.x) / 2;
+      const midY = (prev.y + curr.y) / 2;
+      this.ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
+    }
+    
+    // Complete back to left side
+    this.ctx.lineTo(mx + 10, my + 25);
+    this.ctx.arc(mx + 32, my + 25, 22, Math.PI, Math.PI * 2, true);
+    
+    this.ctx.closePath();
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    // Add subtle shading lines with glow
+    this.ctx.strokeStyle = "rgba(200, 200, 180, 0.3)";
+    this.ctx.lineWidth = 1;
+    this.ctx.shadowBlur = 0; // Reset shadow for internal lines
+    
+    for (let i = 0; i < 3; i++) {
+      const x = mx + 18 + i * 7;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, my + 30);
+      this.ctx.lineTo(x, my + 55);
+      this.ctx.stroke();
+    }
+    
+    // Reset shadow
+    this.ctx.shadowBlur = 0;
+  }
+
+  drawGhostInterior(mx, my, breathe, time, isDeadly) {
+    // Subtle interior shading for depth
+    this.ctx.globalAlpha = 0.15;
+    
+    // Left side gradient shading
+    const leftGradient = this.ctx.createLinearGradient(mx + 10, my + 30, mx + 20, my + 30);
+    leftGradient.addColorStop(0, "rgba(0, 0, 0, 0.5)");
+    leftGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+    
+    this.ctx.fillStyle = leftGradient;
+    this.ctx.fillRect(mx + 10, my + 30, 10, 30);
+    
+    // Right side gradient shading
+    const rightGradient = this.ctx.createLinearGradient(mx + 44, my + 30, mx + 54, my + 30);
+    rightGradient.addColorStop(0, "rgba(0, 0, 0, 0)");
+    rightGradient.addColorStop(1, "rgba(0, 0, 0, 0.5)");
+    
+    this.ctx.fillStyle = rightGradient;
+    this.ctx.fillRect(mx + 44, my + 30, 10, 30);
+  }
+
+  drawGhostFace(mx, my, breathe, isDeadly) {
+    // Fill the entire face area with white
+    this.ctx.globalAlpha = 1;
+    this.ctx.fillStyle = "#FFFFFF"; // Pure white
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 32, my + 25, 20, 0, Math.PI * 2); // Face area
+    this.ctx.fill();
+
+    // Face features - simple classic ghost appearance
+    this.ctx.fillStyle = "#000000"; // Black
+
+    // Left eye - large oval
+    this.ctx.beginPath();
+    this.ctx.ellipse(mx + 22, my + 18 + breathe, 6, 8, 0, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Right eye - large oval
+    this.ctx.beginPath();
+    this.ctx.ellipse(mx + 42, my + 18 + breathe, 6, 8, 0, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Add pupils/shine in eyes
+    this.ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 23, my + 16 + breathe, 2, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 43, my + 16 + breathe, 2, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Nose - two small dots
+    this.ctx.fillStyle = "#000000";
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 30, my + 30 + breathe, 1.5, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 34, my + 30 + breathe, 1.5, 0, Math.PI * 2);
+    this.ctx.fill();
+  }
+
+  drawGhostAura(mx, my, time, isDeadly) {
+    // Draw dark aura around the ghost for added scariness - enhanced glow
+    this.ctx.globalAlpha = 0.4;
+    
+    // Pulsing dark aura with enhanced glow
+    const auraPulse = 1 + Math.sin(time * 2.5) * 0.3;
+    const auraRadius = 50 * auraPulse;
+    
+    // Add shadow glow effect
+    if (isDeadly) {
+      this.ctx.shadowColor = "#FF0000";
+      this.ctx.shadowBlur = 20;
+    } else {
+      this.ctx.shadowColor = "#FFFFFF";
+      this.ctx.shadowBlur = 15;
+    }
+    
+    const auraGradient = this.ctx.createRadialGradient(mx + 32, my + 40, 0, mx + 32, my + 40, auraRadius);
+    if (isDeadly) {
+      auraGradient.addColorStop(0, "rgba(255, 0, 0, 1.0)");
+      auraGradient.addColorStop(0.4, "rgba(255, 50, 50, 0.6)");
+      auraGradient.addColorStop(0.7, "rgba(255, 100, 100, 0.3)");
+      auraGradient.addColorStop(1, "rgba(255, 150, 150, 0)");
+    } else {
+      auraGradient.addColorStop(0, "rgba(0, 0, 0, 1.0)");
+      auraGradient.addColorStop(0.4, "rgba(30, 30, 30, 0.7)");
+      auraGradient.addColorStop(0.7, "rgba(60, 60, 60, 0.4)");
+      auraGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
+    }
+    
+    this.ctx.fillStyle = auraGradient;
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 32, my + 40, auraRadius, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Add jagged shadow beneath ghost with glow
+    this.ctx.globalAlpha = 0.5;
+    this.ctx.fillStyle = isDeadly ? "rgba(255, 0, 0, 0.8)" : "rgba(0, 0, 0, 0.8)";
+    this.ctx.beginPath();
+    this.ctx.ellipse(mx + 32, my + 80, 40, 18, 0, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Reset shadow and alpha
+    this.ctx.shadowBlur = 0;
+    this.ctx.globalAlpha = 1;
+  }
+
+  drawGhostChains(mx, my, time, isDeadly) {
+    // Draw floating chains around the ghost for horror effect
+    if (!isDeadly) return;
+    
+    this.ctx.strokeStyle = "rgba(50, 50, 50, 0.8)";
+    this.ctx.lineWidth = 2;
+    this.ctx.globalAlpha = 0.7;
+    
+    // Left chain
+    const leftChainSwing = Math.sin(time * 1.5) * 5;
+    this.ctx.beginPath();
+    this.ctx.moveTo(mx + 10, my + 20);
+    this.ctx.quadraticCurveTo(mx + 5 + leftChainSwing, my + 40, mx - 5, my + 60);
+    this.ctx.stroke();
+    
+    // Draw chain links
+    for (let i = 0; i < 3; i++) {
+      const linkY = my + 30 + i * 10;
+      this.ctx.beginPath();
+      this.ctx.arc(mx + 8 + leftChainSwing * 0.3, linkY, 2, 0, Math.PI * 2);
+      this.ctx.stroke();
+    }
+    
+    // Right chain
+    const rightChainSwing = Math.sin(time * 1.5 + Math.PI) * 5;
+    this.ctx.beginPath();
+    this.ctx.moveTo(mx + 54, my + 20);
+    this.ctx.quadraticCurveTo(mx + 59 + rightChainSwing, my + 40, mx + 69, my + 60);
+    this.ctx.stroke();
+    
+    // Draw chain links
+    for (let i = 0; i < 3; i++) {
+      const linkY = my + 30 + i * 10;
+      this.ctx.beginPath();
+      this.ctx.arc(mx + 56 + rightChainSwing * 0.3, linkY, 2, 0, Math.PI * 2);
+      this.ctx.stroke();
+    }
+    
+    this.ctx.globalAlpha = 1;
+  }
+
+  drawGhostMist(mx, my, time, isDeadly) {
+    // Draw dark mist particles around the ghost - enhanced with glow
+    this.ctx.fillStyle = isDeadly ? "rgba(255, 50, 50, 0.4)" : "rgba(30, 30, 30, 0.4)";
+    
+    // Add glow to mist particles
+    if (isDeadly) {
+      this.ctx.shadowColor = "#FF0000";
+      this.ctx.shadowBlur = 6;
+    } else {
+      this.ctx.shadowColor = "#FFFFFF";
+      this.ctx.shadowBlur = 4;
+    }
+    
+    this.ctx.globalAlpha = 0.6;
+    
+    const mistCount = isDeadly ? 10 : 6;
+    for (let i = 0; i < mistCount; i++) {
+      const angle = (i / mistCount) * Math.PI * 2 + time * 0.5;
+      const distance = 45 + Math.sin(time * 0.8 + i) * 12;
+      const mistX = mx + 32 + Math.cos(angle) * distance;
+      const mistY = my + 40 + Math.sin(angle) * distance;
+      const mistSize = 4 + Math.sin(time * 1.2 + i * 0.7) * 3;
+      
+      this.ctx.beginPath();
+      this.ctx.arc(mistX, mistY, mistSize, 0, Math.PI * 2);
+      this.ctx.fill();
+    }
+    
+    // Reset shadow and alpha
+    this.ctx.shadowBlur = 0;
+    this.ctx.globalAlpha = 1;
+  }
+
+  drawGhostRedEyes(mx, my, breathe, time) {
+    // Draw glowing red eyes that pulse when deadly - enhanced glow
+    const eyePulse = 1 + Math.sin(time * 4) * 0.4;
+    
+    // Enhanced red glow behind eyes
+    this.ctx.shadowColor = "#FF0000";
+    this.ctx.shadowBlur = 15 * eyePulse;
+    
+    this.ctx.fillStyle = "#FF0000";
+    this.ctx.globalAlpha = 0.9;
+    
+    // Left red eye with enhanced glow
+    this.ctx.beginPath();
+    this.ctx.ellipse(mx + 22, my + 18 + breathe, 5 * eyePulse, 7 * eyePulse, 0, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Right red eye with enhanced glow
+    this.ctx.beginPath();
+    this.ctx.ellipse(mx + 42, my + 18 + breathe, 5 * eyePulse, 7 * eyePulse, 0, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Bright red pupils with intense glow
+    this.ctx.fillStyle = "#FF6666";
+    this.ctx.shadowBlur = 8 * eyePulse;
+    
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 22, my + 18 + breathe, 2.5 * eyePulse, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 42, my + 18 + breathe, 2.5 * eyePulse, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Add extra bright core to eyes
+    this.ctx.fillStyle = "#FFFFFF";
+    this.ctx.shadowBlur = 3 * eyePulse;
+    
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 22, my + 18 + breathe, 1 * eyePulse, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 42, my + 18 + breathe, 1 * eyePulse, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Reset shadow
+    this.ctx.shadowBlur = 0;
+    this.ctx.globalAlpha = 1;
+  }
+
+  drawGhostOuterGlow(mx, my, time, isDeadly) {
+    // Enhanced outer glow effect that surrounds the entire ghost
+    const glowIntensity = isDeadly ? 1.5 : 1.0;
+    const pulse = 1 + Math.sin(time * 2) * 0.2;
+    
+    // Large outer glow
+    const outerGlowGradient = this.ctx.createRadialGradient(
+      mx + 32, my + 40, 0,
+      mx + 32, my + 40, 80 * pulse
+    );
+    
+    if (isDeadly) {
+      // Deadly ghost: red-tinted glow
+      outerGlowGradient.addColorStop(0, `rgba(255, 0, 0, ${0.3 * glowIntensity})`);
+      outerGlowGradient.addColorStop(0.3, `rgba(255, 100, 100, ${0.2 * glowIntensity})`);
+      outerGlowGradient.addColorStop(0.6, `rgba(255, 150, 150, ${0.1 * glowIntensity})`);
+      outerGlowGradient.addColorStop(1, "rgba(255, 200, 200, 0)");
+    } else {
+      // Normal ghost: ethereal white-blue glow
+      outerGlowGradient.addColorStop(0, `rgba(255, 255, 255, ${0.4 * glowIntensity})`);
+      outerGlowGradient.addColorStop(0.3, `rgba(173, 216, 230, ${0.3 * glowIntensity})`);
+      outerGlowGradient.addColorStop(0.6, `rgba(135, 206, 235, ${0.15 * glowIntensity})`);
+      outerGlowGradient.addColorStop(1, "rgba(173, 216, 230, 0)");
+    }
+    
+    this.ctx.fillStyle = outerGlowGradient;
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 32, my + 40, 80 * pulse, 0, Math.PI * 2);
+    this.ctx.fill();
+    
+    // Additional inner glow layer for more intensity
+    const innerGlowGradient = this.ctx.createRadialGradient(
+      mx + 32, my + 40, 0,
+      mx + 32, my + 40, 50 * pulse
+    );
+    
+    if (isDeadly) {
+      innerGlowGradient.addColorStop(0, `rgba(255, 50, 50, ${0.5 * glowIntensity})`);
+      innerGlowGradient.addColorStop(0.5, `rgba(255, 100, 100, ${0.3 * glowIntensity})`);
+      innerGlowGradient.addColorStop(1, "rgba(255, 150, 150, 0)");
+    } else {
+      innerGlowGradient.addColorStop(0, `rgba(255, 255, 255, ${0.6 * glowIntensity})`);
+      innerGlowGradient.addColorStop(0.5, `rgba(200, 220, 255, ${0.4 * glowIntensity})`);
+      innerGlowGradient.addColorStop(1, "rgba(173, 216, 230, 0)");
+    }
+    
+    this.ctx.fillStyle = innerGlowGradient;
+    this.ctx.beginPath();
+    this.ctx.arc(mx + 32, my + 40, 50 * pulse, 0, Math.PI * 2);
+    this.ctx.fill();
   }
 
   drawClouds() {
