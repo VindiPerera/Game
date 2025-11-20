@@ -715,7 +715,7 @@ app.get("/history", checkAuth, (req, res) => {
      FROM game_sessions gs
      INNER JOIN users u ON gs.user_id = u.id
      WHERE gs.user_id = ?
-     ORDER BY gs.created_at DESC 
+     ORDER BY gs.final_score DESC 
      LIMIT 50`,
     [req.user.id],
     (err, results) => {
