@@ -102,22 +102,22 @@ router.post("/register", async (req, res) => {
 
 // Login Route
 router.post("/login", (req, res) => {
-  const { email, password } = req.body;
+  const { username, password } = req.body;
 
   // Validation
-  if (!email || !password) {
-    return res.status(400).json({ message: "Email and password are required" });
+  if (!username || !password) {
+    return res.status(400).json({ message: "Username and password are required" });
   }
 
-  // Find user by email
-  db.query("SELECT * FROM users WHERE email = ?", [email], async (err, results) => {
+  // Find user by username
+  db.query("SELECT * FROM users WHERE username = ?", [username], async (err, results) => {
     if (err) {
       console.error("Database error:", err);
       return res.status(500).json({ message: "Database error" });
     }
 
     if (results.length === 0) {
-      return res.status(401).json({ message: "Invalid email or password" });
+      return res.status(401).json({ message: "Invalid username or password" });
     }
 
     const user = results[0];
@@ -127,7 +127,7 @@ router.post("/login", (req, res) => {
       const isPasswordValid = await bcrypt.compare(password, user.password);
 
       if (!isPasswordValid) {
-        return res.status(401).json({ message: "Invalid email or password" });
+        return res.status(401).json({ message: "Invalid username or password" });
       }
 
       // Generate JWT token

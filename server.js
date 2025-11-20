@@ -67,18 +67,18 @@ app.get("/register", (req, res) => {
 
 // Handle login form submission
 app.post("/auth/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { username, password } = req.body;
 
-  if (!email || !password) {
+  if (!username || !password) {
     return res.render('login', {
       title: 'Login',
-      error: 'Email and password are required'
+      error: 'Username and password are required'
     });
   }
 
   try {
-    // Find user by email
-    db.query("SELECT * FROM users WHERE email = ?", [email], async (err, results) => {
+    // Find user by username
+    db.query("SELECT * FROM users WHERE username = ?", [username], async (err, results) => {
       if (err) {
         console.error("Database error:", err);
         return res.render('login', {
@@ -90,7 +90,7 @@ app.post("/auth/login", async (req, res) => {
       if (results.length === 0) {
         return res.render('login', {
           title: 'Login',
-          error: 'Invalid email or password'
+          error: 'Invalid username or password'
         });
       }
 
@@ -102,7 +102,7 @@ app.post("/auth/login", async (req, res) => {
       if (!isPasswordValid) {
         return res.render('login', {
           title: 'Login',
-          error: 'Invalid email or password'
+          error: 'Invalid username or password'
         });
       }
 

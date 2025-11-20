@@ -180,9 +180,9 @@
 
         <form id="loginForm" action="/auth/login" method="POST">
             <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" required placeholder="Enter your email">
-                <div class="error-message" id="emailError"></div>
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required placeholder="Enter your username">
+                <div class="error-message" id="usernameError"></div>
             </div>
 
             <div class="form-group">
@@ -203,28 +203,32 @@
 
     <script>
         document.getElementById('loginForm').addEventListener('submit', function(e) {
-            const email = document.getElementById('email').value.trim();
+            const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value.trim();
             let isValid = true;
 
             // Reset errors
-            document.getElementById('emailError').classList.remove('show');
+            document.getElementById('usernameError').classList.remove('show');
             document.getElementById('passwordError').classList.remove('show');
 
-            // Email validation
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!email) {
-                document.getElementById('emailError').textContent = 'Email is required';
-                document.getElementById('emailError').classList.add('show');
-                document.getElementById('email').classList.add('error');
+            // Username validation
+            if (!username) {
+                document.getElementById('usernameError').textContent = 'Username is required';
+                document.getElementById('usernameError').classList.add('show');
+                document.getElementById('username').classList.add('error');
                 isValid = false;
-            } else if (!emailRegex.test(email)) {
-                document.getElementById('emailError').textContent = 'Please enter a valid email address';
-                document.getElementById('emailError').classList.add('show');
-                document.getElementById('email').classList.add('error');
+            } else if (username.length < 3) {
+                document.getElementById('usernameError').textContent = 'Username must be at least 3 characters';
+                document.getElementById('usernameError').classList.add('show');
+                document.getElementById('username').classList.add('error');
+                isValid = false;
+            } else if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+                document.getElementById('usernameError').textContent = 'Username can only contain letters, numbers, and underscores';
+                document.getElementById('usernameError').classList.add('show');
+                document.getElementById('username').classList.add('error');
                 isValid = false;
             } else {
-                document.getElementById('email').classList.remove('error');
+                document.getElementById('username').classList.remove('error');
             }
 
             // Password validation
