@@ -196,10 +196,13 @@ app.post("/auth/register", async (req, res) => {
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
+        // Get user IP address
+        const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.connection.remoteAddress || req.ip;
+
         // Insert new user
         db.query(
-          "INSERT INTO users (username, email, password, country, created_at) VALUES (?, ?, ?, ?, NOW())",
-          [username, email, hashedPassword, country && country.trim() ? country.trim() : null],
+          "INSERT INTO users (username, email, password, country, ip_address, created_at) VALUES (?, ?, ?, ?, ?, NOW())",
+          [username, email, hashedPassword, country && country.trim() ? country.trim() : null, ip],
           (err, result) => {
             if (err) {
               console.error("Database error:", err);

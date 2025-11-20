@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(100) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     country VARCHAR(100),
+    ip_address VARCHAR(45),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP NULL,
     is_active BOOLEAN DEFAULT TRUE,
@@ -58,3 +59,6 @@ FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 -- Add country column to users table if it doesn't exist
 ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100);
+
+-- Add ip_address column to users table if it doesn't exist
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45);
