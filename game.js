@@ -1120,14 +1120,14 @@ class EndlessRunner {
   }
 
   generateBackgroundTrees() {
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 15; i++) {
       this.backgroundTrees.push({
         x: Math.random() * this.canvas.width * 2,
         y: this.ground - 80 - Math.random() * 40,
         width: Math.random() * 40 + 60,
         height: Math.random() * 60 + 100,
         depth: Math.random() * 0.5 + 0.3, // For parallax effect
-        type: Math.floor(Math.random() * 3), // Different tree types
+        type: Math.floor(Math.random() * 6), // Increased to 6 different tree types
       });
     }
   }
@@ -4215,113 +4215,309 @@ class EndlessRunner {
       const tx = tree.x;
       const ty = tree.y;
 
-      // Tree trunk
-      this.ctx.fillStyle = `rgba(101, 67, 33, ${alpha})`;
+      // Save context for tree-specific transformations
+      this.ctx.save();
+
+      // Add slight random rotation for more natural look
+      const randomRotation = (Math.sin(tree.x * 0.01) + Math.cos(tree.y * 0.01)) * 0.05;
+      this.ctx.translate(tx + tree.width * 0.5, ty + tree.height * 0.5);
+      this.ctx.rotate(randomRotation);
+      this.ctx.translate(-tree.width * 0.5, -tree.height * 0.5);
+
+      // Tree trunk with gradient and texture
+      const trunkGradient = this.ctx.createLinearGradient(0, ty + tree.height * 0.6, 0, ty + tree.height);
+      trunkGradient.addColorStop(0, `rgba(139, 69, 19, ${alpha})`); // Saddle brown
+      trunkGradient.addColorStop(0.7, `rgba(101, 67, 33, ${alpha})`); // Dark brown
+      trunkGradient.addColorStop(1, `rgba(75, 54, 33, ${alpha})`); // Very dark brown
+
+      this.ctx.fillStyle = trunkGradient;
       this.ctx.fillRect(
-        tx + tree.width * 0.4,
-        ty + tree.height * 0.6,
-        tree.width * 0.2,
+        tree.width * 0.45,
+        tree.height * 0.6,
+        tree.width * 0.1,
         tree.height * 0.4
       );
 
-      // Tree foliage based on type
+      // Add trunk texture lines
+      this.ctx.strokeStyle = `rgba(75, 54, 33, ${alpha * 0.8})`;
+      this.ctx.lineWidth = 1;
+      for (let i = 0; i < 3; i++) {
+        const lineY = tree.height * (0.65 + i * 0.1);
+        this.ctx.beginPath();
+        this.ctx.moveTo(tree.width * 0.46, lineY);
+        this.ctx.lineTo(tree.width * 0.54, lineY);
+        this.ctx.stroke();
+      }
+
+      // Tree foliage based on type with more realistic shapes
       switch (tree.type) {
-        case 0: // Pine tree
-          this.ctx.fillStyle = `rgba(34, 139, 34, ${alpha})`;
-          this.ctx.beginPath();
-          this.ctx.moveTo(tx + tree.width * 0.5, ty);
-          this.ctx.lineTo(tx + tree.width * 0.2, ty + tree.height * 0.4);
-          this.ctx.lineTo(tx + tree.width * 0.8, ty + tree.height * 0.4);
-          this.ctx.closePath();
-          this.ctx.fill();
-
-          this.ctx.beginPath();
-          this.ctx.moveTo(tx + tree.width * 0.5, ty + tree.height * 0.2);
-          this.ctx.lineTo(tx + tree.width * 0.15, ty + tree.height * 0.6);
-          this.ctx.lineTo(tx + tree.width * 0.85, ty + tree.height * 0.6);
-          this.ctx.closePath();
-          this.ctx.fill();
-
-          this.ctx.beginPath();
-          this.ctx.moveTo(tx + tree.width * 0.5, ty + tree.height * 0.4);
-          this.ctx.lineTo(tx + tree.width * 0.1, ty + tree.height * 0.8);
-          this.ctx.lineTo(tx + tree.width * 0.9, ty + tree.height * 0.8);
-          this.ctx.closePath();
-          this.ctx.fill();
+        case 0: // Realistic Pine tree with layered branches
+          this.drawPineTree(tree, alpha);
           break;
 
-        case 1: // Round tree
-          this.ctx.fillStyle = `rgba(34, 139, 34, ${alpha})`;
-          this.ctx.beginPath();
-          this.ctx.arc(
-            tx + tree.width * 0.5,
-            ty + tree.height * 0.3,
-            tree.width * 0.4,
-            0,
-            Math.PI * 2
-          );
-          this.ctx.fill();
-
-          this.ctx.beginPath();
-          this.ctx.arc(
-            tx + tree.width * 0.3,
-            ty + tree.height * 0.5,
-            tree.width * 0.35,
-            0,
-            Math.PI * 2
-          );
-          this.ctx.fill();
-
-          this.ctx.beginPath();
-          this.ctx.arc(
-            tx + tree.width * 0.7,
-            ty + tree.height * 0.5,
-            tree.width * 0.35,
-            0,
-            Math.PI * 2
-          );
-          this.ctx.fill();
+        case 1: // Oak-like tree with rounded canopy
+          this.drawOakTree(tree, alpha);
           break;
 
-        case 2: // Tall tree
-          this.ctx.fillStyle = `rgba(34, 139, 34, ${alpha})`;
-          this.ctx.beginPath();
-          this.ctx.ellipse(
-            tx + tree.width * 0.5,
-            ty + tree.height * 0.2,
-            tree.width * 0.4,
-            tree.height * 0.3,
-            0,
-            0,
-            Math.PI * 2
-          );
-          this.ctx.fill();
+        case 3: // Willow tree with drooping branches
+          this.drawWillowTree(tree, alpha);
+          break;
 
-          this.ctx.beginPath();
-          this.ctx.ellipse(
-            tx + tree.width * 0.5,
-            ty + tree.height * 0.4,
-            tree.width * 0.35,
-            tree.height * 0.25,
-            0,
-            0,
-            Math.PI * 2
-          );
-          this.ctx.fill();
+        case 4: // Cypress tree with narrow profile
+          this.drawCypressTree(tree, alpha);
+          break;
 
-          this.ctx.beginPath();
-          this.ctx.ellipse(
-            tx + tree.width * 0.5,
-            ty + tree.height * 0.6,
-            tree.width * 0.3,
-            tree.height * 0.2,
-            0,
-            0,
-            Math.PI * 2
-          );
-          this.ctx.fill();
+        case 5: // Maple tree with broad canopy
+          this.drawMapleTree(tree, alpha);
           break;
       }
+
+      // Restore context
+      this.ctx.restore();
+    });
+  }
+
+  drawPineTree(tree, alpha) {
+    const tx = 0;
+    const ty = 0;
+
+    // Pine tree layers with more natural shapes
+    const layers = [
+      { y: tree.height * 0.1, width: tree.width * 0.9, height: tree.height * 0.25 },
+      { y: tree.height * 0.25, width: tree.width * 0.8, height: tree.height * 0.2 },
+      { y: tree.height * 0.4, width: tree.width * 0.7, height: tree.height * 0.18 },
+      { y: tree.height * 0.55, width: tree.width * 0.6, height: tree.height * 0.15 }
+    ];
+
+    layers.forEach((layer, index) => {
+      // Create gradient for each layer
+      const layerGradient = this.ctx.createLinearGradient(
+        tx + tree.width * 0.5 - layer.width * 0.5,
+        layer.y,
+        tx + tree.width * 0.5 + layer.width * 0.5,
+        layer.y + layer.height
+      );
+      layerGradient.addColorStop(0, `rgba(34, 139, 34, ${alpha})`); // Forest green
+      layerGradient.addColorStop(0.5, `rgba(25, 111, 25, ${alpha})`); // Dark green
+      layerGradient.addColorStop(1, `rgba(34, 139, 34, ${alpha})`); // Forest green
+
+      this.ctx.fillStyle = layerGradient;
+
+      // Draw triangular layer with slight curve for realism
+      this.ctx.beginPath();
+      this.ctx.moveTo(tx + tree.width * 0.5, layer.y);
+      this.ctx.quadraticCurveTo(
+        tx + tree.width * 0.5 - layer.width * 0.4, layer.y + layer.height * 0.3,
+        tx + tree.width * 0.5 - layer.width * 0.5, layer.y + layer.height
+      );
+      this.ctx.lineTo(tx + tree.width * 0.5 + layer.width * 0.5, layer.y + layer.height);
+      this.ctx.quadraticCurveTo(
+        tx + tree.width * 0.5 + layer.width * 0.4, layer.y + layer.height * 0.3,
+        tx + tree.width * 0.5, layer.y
+      );
+      this.ctx.closePath();
+      this.ctx.fill();
+
+      // Add some branch details
+      if (index < 2) {
+        this.ctx.strokeStyle = `rgba(139, 69, 19, ${alpha * 0.6})`;
+        this.ctx.lineWidth = 2;
+        // Left branch
+        this.ctx.beginPath();
+        this.ctx.moveTo(tx + tree.width * 0.5, layer.y + layer.height * 0.4);
+        this.ctx.lineTo(tx + tree.width * 0.3, layer.y + layer.height * 0.6);
+        this.ctx.stroke();
+        // Right branch
+        this.ctx.beginPath();
+        this.ctx.moveTo(tx + tree.width * 0.5, layer.y + layer.height * 0.5);
+        this.ctx.lineTo(tx + tree.width * 0.7, layer.y + layer.height * 0.7);
+        this.ctx.stroke();
+      }
+    });
+  }
+
+  drawOakTree(tree, alpha) {
+    const tx = 0;
+    const ty = 0;
+
+    // Main canopy with irregular shape
+    this.ctx.fillStyle = `rgba(34, 139, 34, ${alpha})`;
+
+    // Draw main canopy as multiple overlapping circles with slight variations
+    const canopyCenter = { x: tree.width * 0.5, y: tree.height * 0.35 };
+    const canopyRadius = tree.width * 0.35;
+
+    // Main canopy circle
+    this.ctx.beginPath();
+    this.ctx.arc(canopyCenter.x, canopyCenter.y, canopyRadius, 0, Math.PI * 2);
+    this.ctx.fill();
+
+    // Add major branches
+    this.ctx.strokeStyle = `rgba(139, 69, 19, ${alpha * 0.8})`;
+    this.ctx.lineWidth = 3;
+    const branches = [
+      { start: { x: tree.width * 0.5, y: tree.height * 0.6 }, end: { x: tree.width * 0.3, y: tree.height * 0.45 } },
+      { start: { x: tree.width * 0.5, y: tree.height * 0.6 }, end: { x: tree.width * 0.7, y: tree.height * 0.45 } },
+      { start: { x: tree.width * 0.45, y: tree.height * 0.65 }, end: { x: tree.width * 0.2, y: tree.height * 0.5 } },
+      { start: { x: tree.width * 0.55, y: tree.height * 0.65 }, end: { x: tree.width * 0.8, y: tree.height * 0.5 } }
+    ];
+
+    branches.forEach(branch => {
+      this.ctx.beginPath();
+      this.ctx.moveTo(branch.start.x, branch.start.y);
+      this.ctx.lineTo(branch.end.x, branch.end.y);
+      this.ctx.stroke();
+    });
+  }
+
+  drawWillowTree(tree, alpha) {
+    const tx = 0;
+    const ty = 0;
+
+    // Thin, flexible trunk
+    const trunkGradient = this.ctx.createLinearGradient(tree.width * 0.48, tree.height * 0.6, tree.width * 0.52, tree.height);
+    trunkGradient.addColorStop(0, `rgba(139, 69, 19, ${alpha})`); // Brown
+    trunkGradient.addColorStop(0.7, `rgba(101, 67, 33, ${alpha})`); // Dark brown
+    trunkGradient.addColorStop(1, `rgba(75, 54, 33, ${alpha})`); // Very dark brown
+
+    this.ctx.fillStyle = trunkGradient;
+    this.ctx.fillRect(
+      tree.width * 0.49,
+      tree.height * 0.6,
+      tree.width * 0.02,
+      tree.height * 0.4
+    );
+
+    // Drooping willow canopy - long, flowing branches
+    this.ctx.fillStyle = `rgba(34, 139, 34, ${alpha})`;
+
+    // Main canopy mass
+    this.ctx.beginPath();
+    this.ctx.ellipse(
+      tree.width * 0.5,
+      tree.height * 0.4,
+      tree.width * 0.4,
+      tree.height * 0.25,
+      0,
+      0,
+      Math.PI * 2
+    );
+    this.ctx.fill();
+
+    // Additional drooping sections
+    const droops = [
+      { x: tree.width * 0.3, y: tree.height * 0.45, w: tree.width * 0.25, h: tree.height * 0.15 },
+      { x: tree.width * 0.7, y: tree.height * 0.45, w: tree.width * 0.25, h: tree.height * 0.15 },
+      { x: tree.width * 0.5, y: tree.height * 0.55, w: tree.width * 0.2, h: tree.height * 0.12 }
+    ];
+
+    droops.forEach(droop => {
+      this.ctx.beginPath();
+      this.ctx.ellipse(droop.x, droop.y, droop.w, droop.h, 0, 0, Math.PI * 2);
+      this.ctx.fill();
+    });
+  }
+
+  drawCypressTree(tree, alpha) {
+    const tx = 0;
+    const ty = 0;
+
+    // Tall, narrow trunk
+    const trunkGradient = this.ctx.createLinearGradient(tree.width * 0.47, tree.height * 0.6, tree.width * 0.53, tree.height);
+    trunkGradient.addColorStop(0, `rgba(139, 69, 19, ${alpha})`); // Brown
+    trunkGradient.addColorStop(0.7, `rgba(101, 67, 33, ${alpha})`); // Dark brown
+    trunkGradient.addColorStop(1, `rgba(75, 54, 33, ${alpha})`); // Very dark brown
+
+    this.ctx.fillStyle = trunkGradient;
+    this.ctx.fillRect(
+      tree.width * 0.48,
+      tree.height * 0.6,
+      tree.width * 0.04,
+      tree.height * 0.4
+    );
+
+    // Narrow, conical cypress foliage
+    this.ctx.fillStyle = `rgba(34, 139, 34, ${alpha})`;
+
+    // Layered conical sections
+    const layers = [
+      { y: tree.height * 0.15, width: tree.width * 0.25, height: tree.height * 0.15 },
+      { y: tree.height * 0.25, width: tree.width * 0.3, height: tree.height * 0.15 },
+      { y: tree.height * 0.35, width: tree.width * 0.35, height: tree.height * 0.15 },
+      { y: tree.height * 0.45, width: tree.width * 0.4, height: tree.height * 0.15 }
+    ];
+
+    layers.forEach((layer, index) => {
+      this.ctx.beginPath();
+      this.ctx.moveTo(tree.width * 0.5, layer.y);
+      this.ctx.lineTo(tree.width * 0.5 - layer.width * 0.5, layer.y + layer.height);
+      this.ctx.lineTo(tree.width * 0.5 + layer.width * 0.5, layer.y + layer.height);
+      this.ctx.closePath();
+      this.ctx.fill();
+    });
+
+    // Add some texture lines
+    this.ctx.strokeStyle = `rgba(25, 111, 25, ${alpha * 0.8})`;
+    this.ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(tree.width * 0.5 - tree.width * 0.15, tree.height * (0.2 + i * 0.1));
+      this.ctx.lineTo(tree.width * 0.5 + tree.width * 0.15, tree.height * (0.2 + i * 0.1));
+      this.ctx.stroke();
+    }
+  }
+
+  drawMapleTree(tree, alpha) {
+    const tx = 0;
+    const ty = 0;
+
+    // Sturdy trunk
+    const trunkGradient = this.ctx.createLinearGradient(tree.width * 0.47, tree.height * 0.6, tree.width * 0.53, tree.height);
+    trunkGradient.addColorStop(0, `rgba(139, 69, 19, ${alpha})`); // Brown
+    trunkGradient.addColorStop(0.7, `rgba(101, 67, 33, ${alpha})`); // Dark brown
+    trunkGradient.addColorStop(1, `rgba(75, 54, 33, ${alpha})`); // Very dark brown
+
+    this.ctx.fillStyle = trunkGradient;
+    this.ctx.fillRect(
+      tree.width * 0.48,
+      tree.height * 0.6,
+      tree.width * 0.04,
+      tree.height * 0.4
+    );
+
+    // Broad maple canopy with distinct lobes
+    this.ctx.fillStyle = `rgba(34, 139, 34, ${alpha})`;
+
+    // Main canopy sections
+    const lobes = [
+      { x: tree.width * 0.35, y: tree.height * 0.25, w: tree.width * 0.25, h: tree.height * 0.2 },
+      { x: tree.width * 0.65, y: tree.height * 0.25, w: tree.width * 0.25, h: tree.height * 0.2 },
+      { x: tree.width * 0.5, y: tree.height * 0.35, w: tree.width * 0.3, h: tree.height * 0.18 },
+      { x: tree.width * 0.25, y: tree.height * 0.4, w: tree.width * 0.2, h: tree.height * 0.15 },
+      { x: tree.width * 0.75, y: tree.height * 0.4, w: tree.width * 0.2, h: tree.height * 0.15 }
+    ];
+
+    lobes.forEach(lobe => {
+      this.ctx.beginPath();
+      this.ctx.ellipse(lobe.x, lobe.y, lobe.w, lobe.h, 0, 0, Math.PI * 2);
+      this.ctx.fill();
+    });
+
+    // Major branches
+    this.ctx.strokeStyle = `rgba(139, 69, 19, ${alpha * 0.8})`;
+    this.ctx.lineWidth = 3;
+    const branches = [
+      { start: { x: tree.width * 0.5, y: tree.height * 0.6 }, end: { x: tree.width * 0.3, y: tree.height * 0.45 } },
+      { start: { x: tree.width * 0.5, y: tree.height * 0.6 }, end: { x: tree.width * 0.7, y: tree.height * 0.45 } },
+      { start: { x: tree.width * 0.48, y: tree.height * 0.65 }, end: { x: tree.width * 0.2, y: tree.height * 0.5 } },
+      { start: { x: tree.width * 0.52, y: tree.height * 0.65 }, end: { x: tree.width * 0.8, y: tree.height * 0.5 } }
+    ];
+
+    branches.forEach(branch => {
+      this.ctx.beginPath();
+      this.ctx.moveTo(branch.start.x, branch.start.y);
+      this.ctx.lineTo(branch.end.x, branch.end.y);
+      this.ctx.stroke();
     });
   }
 
