@@ -60,6 +60,9 @@ FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 -- Add country column to users table if it doesn't exist
 ALTER TABLE users ADD COLUMN IF NOT EXISTS country VARCHAR(100);
 
+-- Add payout_details column to users table for storing bank/crypto details
+ALTER TABLE users ADD COLUMN IF NOT EXISTS payout_details TEXT;
+
 <<<<<<< Updated upstream
 -- Add ip_address column to users table if it doesn't exist
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ip_address VARCHAR(45);
