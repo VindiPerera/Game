@@ -15,7 +15,7 @@ const createTables = () => {
   console.log("Creating database tables...");
 
   let completed = 0;
-  const total = 3;
+  const total = 2; // Only users and game_sessions tables now
 
   const checkComplete = () => {
     completed++;
@@ -58,23 +58,6 @@ const createTables = () => {
     )
   `;
 
-  // Create scores table
-  const createScoresTable = `
-    CREATE TABLE scores (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      username VARCHAR(50) NOT NULL,
-      score INT NOT NULL,
-      level INT DEFAULT 1,
-      distance INT DEFAULT 0,
-      game_type VARCHAR(50) DEFAULT 'default',
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-      INDEX idx_user_id (user_id),
-      INDEX idx_score (score DESC)
-    )
-  `;
-
   // Create game_sessions table
   const createGameSessionsTable = `
     CREATE TABLE game_sessions (
@@ -113,15 +96,6 @@ const createTables = () => {
         console.error("Error creating users table:", err);
       } else {
         console.log("✅ Users table created");
-      }
-      checkComplete();
-    });
-
-    db.query(createScoresTable, (err) => {
-      if (err) {
-        console.error("Error creating scores table:", err);
-      } else {
-        console.log("✅ Scores table created");
       }
       checkComplete();
     });
