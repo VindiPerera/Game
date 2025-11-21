@@ -589,7 +589,7 @@ app.get("/leaderboard", checkAuth, (req, res) => {
   );
 });
 
-// Winners route - Shows top 3 players from selected day (defaults to yesterday)
+// Winners route - Shows top 3 users of yesterday after Sri Lankan midnight
 app.get("/winners", checkAuth, (req, res) => {
   // Set permissive CSP for winners page to allow Bootstrap, images, and inline scripts
   res.setHeader('Content-Security-Policy', 
@@ -601,9 +601,17 @@ app.get("/winners", checkAuth, (req, res) => {
     "connect-src 'self'"
   );
 
-  // Get date parameter from query string, default to yesterday in Sri Lankan timezone
-  const selectedDate = req.query.date || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
+  // Calculate yesterday's date in Sri Lankan timezone (UTC+5:30)
+  const now = new Date();
+  const sriLankanTime = new Date(now.getTime() + (5.5 * 60 * 60 * 1000)); // Add 5:30 hours
+  
+  // Always show yesterday's winners (previous day's champions)
+  const yesterdayInSriLanka = new Date(sriLankanTime.getTime() - (24 * 60 * 60 * 1000)); // Subtract 24 hours
+  const targetDate = yesterdayInSriLanka.toISOString().split('T')[0]; // Yesterday in Sri Lanka
+  
+  console.log("Current Sri Lankan time:", sriLankanTime.toISOString());
+  console.log("Looking for winners from date (yesterday in Sri Lanka):", targetDate);
+  
   const query = `
     SELECT 
             ranked_sessions.username,
@@ -639,31 +647,40 @@ app.get("/winners", checkAuth, (req, res) => {
             ) as rn
        FROM game_sessions gs
        LEFT JOIN users u ON gs.user_id = u.id AND gs.user_id IS NOT NULL
-       WHERE DATE(CONVERT_TZ(gs.created_at, '+00:00', '+05:30')) = ?
+       WHERE DATE(gs.created_at) = ?
          AND gs.user_id IS NOT NULL
      ) ranked_sessions
      WHERE ranked_sessions.rn = 1
      ORDER BY ranked_sessions.score DESC 
      LIMIT 3`;
 
-  db.query(query, [selectedDate], (err, results) => {
-    if (err) {
-      console.error("Database error:", err);
-      return res.render('winners', {
-        title: 'Game Winners',
-        winners: [],
-        selectedDate: selectedDate,
-        user: req.user,
-        error: 'Failed to load winners data'
-      });
-    }
+  console.log("Executing query with date:", targetDate);
+  
+  // First, let's check what data exists for debugging
+  const debugQuery = "SELECT DATE(created_at) as date_only, user_id, final_score, created_at FROM game_sessions WHERE user_id IS NOT NULL ORDER BY created_at DESC LIMIT 10";
+  db.query(debugQuery, (debugErr, debugResults) => {
+    console.log("Debug - All sessions:", debugResults);
+    
+    db.query(query, [targetDate], (err, results) => {
+      if (err) {
+        console.error("Database error:", err);
+        return res.render('winners', {
+          title: 'Game Winners',
+          winners: [],
+          user: req.user,
+          error: 'Failed to load winners data'
+        });
+      }
 
-    res.render('winners', {
-      title: 'Game Winners',
-      winners: results,
-      selectedDate: selectedDate,
-      user: req.user,
-      error: null
+      console.log("Winners query results:", results);
+      console.log("Number of results:", results.length);
+
+      res.render('winners', {
+        title: 'Game Winners',
+        winners: results,
+        user: req.user,
+        error: null
+      });
     });
   });
 });
@@ -715,7 +732,7 @@ app.get("/history", checkAuth, (req, res) => {
      FROM game_sessions gs
      INNER JOIN users u ON gs.user_id = u.id
      WHERE gs.user_id = ?
-     ORDER BY gs.final_score DESC 
+     ORDER BY gs.created_at DESC 
      LIMIT 50`,
     [req.user.id],
     (err, results) => {

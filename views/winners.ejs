@@ -197,7 +197,7 @@
 
     <!-- Date Display -->
     <div class="date-display">
-        Showing winners for: <span><%= selectedDate %></span>
+        Showing winners for: <span>Yesterday</span>
     </div>
 
     <div class="winners-container">
@@ -228,7 +228,7 @@
                     <% }); %>
                 <% } else { %>
                     <tr>
-                        <td colspan="7" style="text-align: center; color: #666;">No winners found for <%= selectedDate %></td>
+                        <td colspan="7" style="text-align: center; color: #666;">No winners found for yesterday</td>
                     </tr>
                 <% } %>
             </tbody>
