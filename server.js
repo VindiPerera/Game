@@ -883,8 +883,173 @@ app.get("/api/scores/my", authenticateToken, (req, res) => {
 
 // Scores are now saved through /api/sessions route using game_sessions table
 
+// Rate limiting store
+const rateLimitStore = new Map(); // IP -> { count, resetTime }
+
+// Anti-cheat tracking
+const userActivityLog = new Map(); // userId -> activity history
+const suspiciousPatterns = new Map(); // userId -> suspicious flags
+
+// Rate limiting middleware
+function rateLimit(req, res, next) {
+  const ip = req.headers['x-forwarded-for']?.split(',')[0] || req.connection.remoteAddress || req.ip;
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute
+  const maxRequests = 10; // Max 10 session saves per minute per IP
+
+  if (!rateLimitStore.has(ip)) {
+    rateLimitStore.set(ip, { count: 1, resetTime: now + windowMs });
+    return next();
+  }
+
+  const userLimit = rateLimitStore.get(ip);
+
+  if (now > userLimit.resetTime) {
+    // Reset window
+    rateLimitStore.set(ip, { count: 1, resetTime: now + windowMs });
+    return next();
+  }
+
+  if (userLimit.count >= maxRequests) {
+    console.log(`Rate limit exceeded for IP: ${ip}`);
+    return res.status(429).json({ message: "Too many requests. Please wait before submitting again." });
+  }
+
+  userLimit.count++;
+  next();
+}
+
+// Enhanced validation function for session data with anti-cheat
+function validateSessionData(data, userId, ip, guestId = null) {
+  const { durationSeconds, finalScore, coinsCollected, obstaclesHit, powerupsCollected, distanceTraveled, gameResult } = data;
+
+  // Check types and basic ranges
+  if (typeof durationSeconds !== 'number' || durationSeconds < 0 || durationSeconds > 3600) {
+    return "Invalid duration: must be between 0 and 3600 seconds";
+  }
+
+  if (typeof finalScore !== 'number' || finalScore < 0 || finalScore > 10000) {
+    return "Invalid score: must be between 0 and 10000";
+  }
+
+  if (typeof coinsCollected !== 'number' || coinsCollected < 0 || coinsCollected > 10000) {
+    return "Invalid coins collected: must be between 0 and 10000";
+  }
+
+  if (typeof obstaclesHit !== 'number' || obstaclesHit < 0 || obstaclesHit > 100) {
+    return "Invalid obstacles hit: must be between 0 and 100";
+  }
+
+  if (typeof powerupsCollected !== 'number' || powerupsCollected < 0 || powerupsCollected > 50) {
+    return "Invalid powerups collected: must be between 0 and 50";
+  }
+
+  if (typeof distanceTraveled !== 'number' || distanceTraveled < 0 || distanceTraveled > 50000) {
+    return "Invalid distance: must be between 0 and 50000";
+  }
+
+  if (!['died', 'survived', 'unknown'].includes(gameResult)) {
+    return "Invalid game result: must be 'died', 'survived', or 'unknown'";
+  }
+
+  // Check for speed hacking FIRST (before distance validation)
+  const avgSpeed = distanceTraveled / Math.max(durationSeconds, 1); // pixels per second
+  if (avgSpeed > 1000) { // Very high speed - impossible
+    return "Game speed appears manipulated";
+  }
+
+  // Check for coin farming (coins collected way higher than reasonable)
+  const maxReasonableCoins = Math.floor(distanceTraveled / 30); // More generous estimate
+  if (coinsCollected > maxReasonableCoins * 3) {
+    return "Coin collection appears manipulated";
+  }
+
+  // Distance should roughly match duration (game speed is ~7 pixels/frame, 60fps = ~420 pixels/second)
+  // But allow for slowdown periods and variable gameplay
+  const expectedMinDistance = Math.max(0, durationSeconds * 100); // Much more generous minimum
+  const expectedMaxDistance = durationSeconds * 800; // Allow for speed boosts
+  if (distanceTraveled < expectedMinDistance) {
+    return "Distance traveled seems too low for duration";
+  }
+  if (distanceTraveled > expectedMaxDistance) {
+    return "Distance traveled seems too high for duration";
+  }
+
+  // Logical validations
+  // Score should be at least coins collected (base) and at most 2x coins (with multiplier)
+  if (finalScore < coinsCollected || finalScore > coinsCollected * 2) {
+    return "Score must be between coins collected and 2x coins collected";
+  }
+
+  // Obstacles hit should be reasonable for distance
+  const maxExpectedObstacles = Math.floor(distanceTraveled / 80) + 15; // More generous estimate
+  if (obstaclesHit > maxExpectedObstacles) {
+    return "Too many obstacles hit for distance traveled";
+  }
+
+  // Anti-cheat validations
+  const userKey = userId || (guestId ? `guest_${guestId}` : `guest_${ip}`);
+
+  // Track user activity
+  if (!userActivityLog.has(userKey)) {
+    userActivityLog.set(userKey, []);
+  }
+
+  const activityLog = userActivityLog.get(userKey);
+  const now = Date.now();
+
+  // Clean old activity (keep last 24 hours)
+  const oneDayAgo = now - (24 * 60 * 60 * 1000);
+  const recentActivity = activityLog.filter(entry => entry.timestamp > oneDayAgo);
+
+  // Add current session to activity log
+  recentActivity.push({
+    timestamp: now,
+    score: finalScore,
+    duration: durationSeconds,
+    coins: coinsCollected,
+    obstacles: obstaclesHit,
+    distance: distanceTraveled
+  });
+
+  // Keep only recent activity
+  userActivityLog.set(userKey, recentActivity.slice(-100)); // Keep last 100 sessions
+
+  // Check for suspicious patterns
+  if (recentActivity.length >= 3) {
+    // Check for perfect games (no obstacles hit but high scores) - more sensitive
+    const perfectGames = recentActivity.filter(a => a.obstacles === 0 && a.score > 50).length;
+    if (perfectGames >= 2) { // Lower threshold
+      return "Too many perfect games detected";
+    }
+
+    // Check for impossible score progression (score increasing too fast)
+    if (recentActivity.length >= 5) {
+      const scores = recentActivity.map(a => a.score).sort((a, b) => b - a);
+      const avgTop3 = (scores[0] + scores[1] + scores[2]) / 3;
+      const avgRecent = recentActivity.slice(-3).reduce((sum, a) => sum + a.score, 0) / 3;
+
+      if (avgRecent > avgTop3 * 2 && recentActivity.length > 8) {
+        // Recent scores are 2x higher than best historical scores - suspicious
+        if (!suspiciousPatterns.has(userKey)) {
+          suspiciousPatterns.set(userKey, { scoreAnomaly: true, timestamp: now });
+        }
+        return "Suspicious scoring pattern detected";
+      }
+    }
+  }
+
+  // Check for rapid submissions (possible bot)
+  const recentSubmissions = recentActivity.filter(entry => now - entry.timestamp < 60000).length; // Last minute
+  if (recentSubmissions > 5) {
+    return "Too many rapid submissions detected";
+  }
+
+  return null; // No errors
+}
+
 // Add a new session (allows guest sessions)
-app.post("/api/sessions", async (req, res) => {
+app.post("/api/sessions", rateLimit, async (req, res) => {
   // Check if user is authenticated or if it's a guest session
   const token = req.cookies.token;
   let user = null;
@@ -898,6 +1063,9 @@ app.post("/api/sessions", async (req, res) => {
   }
 
   console.log("Session saving request received for:", user ? user.username : 'Guest');
+
+  // Get client IP for rate limiting and anti-cheat
+  const clientIP = req.headers['x-forwarded-for']?.split(',')[0] || req.connection.remoteAddress || req.ip;
 
   // Handle guest users - get guest info from request body
   let userId, username, guestUsername;
@@ -968,6 +1136,22 @@ app.post("/api/sessions", async (req, res) => {
     distanceTraveled,
     gameResult
   } = req.body;
+
+  // Enhanced validation with anti-cheat
+  const validationError = validateSessionData({
+    durationSeconds,
+    finalScore,
+    coinsCollected,
+    obstaclesHit,
+    powerupsCollected,
+    distanceTraveled,
+    gameResult
+  }, userId, clientIP, guestId);
+
+  if (validationError) {
+    console.log("Session validation failed:", validationError, "User:", userId || 'guest', "IP:", clientIP);
+    return res.status(400).json({ message: validationError });
+  }
 
   // Always generate a new 7-digit session ID
   const sessionId = generateSessionId();
@@ -1049,6 +1233,33 @@ io.on('connection', (socket) => {
 });
 
 // Serve static files
-app.use(express.static('.'));
+app.use(express.static('public'));
 
 server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+// Periodic cleanup of rate limiting and activity logs
+setInterval(() => {
+  const now = Date.now();
+  const oneHourAgo = now - (60 * 60 * 1000);
+  const oneDayAgo = now - (24 * 60 * 60 * 1000);
+
+  // Clean up old rate limit entries
+  for (const [ip, data] of rateLimitStore.entries()) {
+    if (data.resetTime < now) {
+      rateLimitStore.delete(ip);
+    }
+  }
+
+  // Clean up old activity logs and suspicious patterns
+  for (const [userKey, activities] of userActivityLog.entries()) {
+    const recentActivities = activities.filter(activity => activity.timestamp > oneDayAgo);
+    if (recentActivities.length === 0) {
+      userActivityLog.delete(userKey);
+      suspiciousPatterns.delete(userKey);
+    } else {
+      userActivityLog.set(userKey, recentActivities);
+    }
+  }
+
+  console.log(`🧹 Cleanup completed: ${rateLimitStore.size} IPs tracked, ${userActivityLog.size} users monitored`);
+}, 30 * 60 * 1000); // Run every 30 minutes
