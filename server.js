@@ -2450,6 +2450,57 @@ app.post("/api/sessions", async (req, res) => {
   // Always generate a new 7-digit session ID
   const sessionId = generateSessionId();
 
+  // Validate session data to prevent cheating
+  const validationErrors = [];
+
+  // Basic validation
+  if (typeof finalScore !== 'number' || finalScore < 0) {
+    validationErrors.push('Invalid score: must be a non-negative number');
+  }
+
+  if (typeof coinsCollected !== 'number' || coinsCollected < 0) {
+    validationErrors.push('Invalid coins collected: must be a non-negative number');
+  }
+
+  if (typeof durationSeconds !== 'number' || durationSeconds < 0) {
+    validationErrors.push('Invalid duration: must be a non-negative number');
+  }
+
+  if (typeof distanceTraveled !== 'number' || distanceTraveled < 0) {
+    validationErrors.push('Invalid distance: must be a non-negative number');
+  }
+
+  // Score validation: score should not exceed coins collected * 2 (accounting for double coins power-up)
+  if (finalScore > (coinsCollected || 0) * 2) {
+    validationErrors.push(`Score (${finalScore}) exceeds maximum possible (${(coinsCollected || 0) * 2}) based on coins collected`);
+  }
+
+  // Distance validation: distance should not exceed a reasonable speed (game speed is ~7 pixels/frame, 60 FPS = ~420 pixels/second)
+  const maxReasonableDistance = durationSeconds * 500; // Allow some margin for speed boosts
+  if (distanceTraveled > maxReasonableDistance) {
+    validationErrors.push(`Distance traveled (${distanceTraveled}) exceeds maximum reasonable distance (${maxReasonableDistance}) for duration`);
+  }
+
+  // Score should not be impossibly high for the game duration (prevent instant high scores)
+  const maxReasonableScore = Math.max(durationSeconds * 10, 1000); // At least 10 points per second or 1000 minimum
+  if (finalScore > maxReasonableScore) {
+    validationErrors.push(`Score (${finalScore}) is unreasonably high for game duration (${durationSeconds}s)`);
+  }
+
+  // Coins collected should not exceed reasonable rate
+  const maxReasonableCoins = durationSeconds * 5; // 5 coins per second max
+  if ((coinsCollected || 0) > maxReasonableCoins) {
+    validationErrors.push(`Coins collected (${coinsCollected}) exceeds maximum reasonable rate for duration`);
+  }
+
+  if (validationErrors.length > 0) {
+    console.log("Session validation failed:", validationErrors);
+    return res.status(400).json({ 
+      message: "Invalid session data: " + validationErrors.join(', '),
+      errors: validationErrors
+    });
+  }
+
   if (!durationSeconds || finalScore === undefined) {
     console.log("Invalid session data:", req.body);
     return res.status(400).json({ message: "Valid session data is required" });

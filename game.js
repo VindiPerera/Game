@@ -5,6 +5,28 @@ class EndlessRunner {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
 
+    // Anti-tampering: Monitor critical properties
+    this._integrityCheck = {
+      score: 0,
+      lastCheck: Date.now(),
+      checkInterval: 5000 // Check every 5 seconds
+    };
+
+    // Override property setters for critical values
+    let _score = 0;
+    Object.defineProperty(this, 'score', {
+      get: () => _score,
+      set: (value) => {
+        if (typeof value === 'number' && value >= 0 && value <= 100000) {
+          _score = value;
+          this._integrityCheck.score = value;
+          this._integrityCheck.lastCheck = Date.now();
+        } else {
+          console.warn('Invalid score value attempted:', value);
+        }
+      }
+    });
+
     // Audio setup
     this.audioContext = null;
     this.backgroundMusic = new Audio("song/song.mp3"); // Load MP3 file
@@ -1892,6 +1914,23 @@ class EndlessRunner {
     // Calculate level based on score (every 75 points increases difficulty)
     const level = Math.floor(this.score / 75) + 1;
 
+    // Additional client-side integrity checks
+    const currentTime = Date.now();
+    const gameDuration = this.sessionStartTime ? (currentTime - this.sessionStartTime) / 1000 : 0;
+
+    // Validate game duration is reasonable (not too short for high scores)
+    if (this.score > 100 && gameDuration < 30) {
+      console.warn("Score validation failed: Game too short for score", this.score, "duration:", gameDuration);
+      return; // Don't save suspicious scores
+    }
+
+    // Validate score progression (shouldn't increase too rapidly)
+    const maxScoreIncrease = gameDuration * 15; // Max 15 points per second
+    if (this.score > maxScoreIncrease) {
+      console.warn("Score validation failed: Score increase too rapid", this.score, "max allowed:", maxScoreIncrease);
+      this.score = Math.min(this.score, maxScoreIncrease);
+    }
+
     // Send score data to server
     fetch('/api/scores', {
       method: 'POST',
@@ -1902,7 +1941,8 @@ class EndlessRunner {
       body: JSON.stringify({
         score: this.score,
         level: level,
-        distance: Math.floor(this.distance)
+        distance: Math.floor(this.distance),
+        validationToken: btoa(this.score + ':' + gameDuration + ':' + this.sessionId) // Simple integrity token
       })
     })
     .then(response => response.json())
@@ -1945,6 +1985,27 @@ class EndlessRunner {
     this.sessionStats.gameResult = result;
     const duration = Math.floor((Date.now() - this.sessionStartTime) / 1000);
 
+    // Enhanced client-side validation before sending
+    const maxReasonableScore = Math.max(duration * 10, 1000);
+    if (this.score > maxReasonableScore) {
+      console.warn("Score validation failed on client:", this.score, "max allowed:", maxReasonableScore);
+      // Reset score to reasonable value
+      this.score = Math.min(this.score, maxReasonableScore);
+    }
+
+    // Additional integrity checks
+    const coinsPerSecond = duration > 0 ? this.sessionStats.coinsCollected / duration : 0;
+    if (coinsPerSecond > 5) { // Max 5 coins per second
+      console.warn("Coin collection rate too high:", coinsPerSecond, "coins/sec");
+      this.sessionStats.coinsCollected = Math.min(this.sessionStats.coinsCollected, duration * 5);
+    }
+
+    const obstaclesPerSecond = duration > 0 ? this.sessionStats.obstaclesHit / duration : 0;
+    if (obstaclesPerSecond > 2) { // Max 2 obstacles per second
+      console.warn("Obstacle hit rate too high:", obstaclesPerSecond, "hits/sec");
+      this.sessionStats.obstaclesHit = Math.min(this.sessionStats.obstaclesHit, duration * 2);
+    }
+
     // Prepare session data
     const sessionData = {
       sessionId: this.sessionId,
@@ -1954,7 +2015,13 @@ class EndlessRunner {
       obstaclesHit: this.sessionStats.obstaclesHit,
       powerupsCollected: this.sessionStats.powerupsCollected,
       distanceTraveled: this.sessionStats.distanceTraveled,
-      gameResult: this.sessionStats.gameResult
+      gameResult: this.sessionStats.gameResult,
+      integrityHash: btoa(JSON.stringify({
+        score: this.score,
+        duration: duration,
+        coins: this.sessionStats.coinsCollected,
+        obstacles: this.sessionStats.obstaclesHit
+      }))
     };
 
     // Add guest user information if playing as guest
@@ -5349,9 +5416,71 @@ class EndlessRunner {
   }
 
   gameLoop() {
-    this.update();
-    this.draw();
+    if (this.gameState === "playing") {
+      // Update game logic
+      this.updatePlayer();
+      this.spawnObstacle();
+      this.spawnCollectibles();
+      this.updateObstacles();
+      this.updateMonster();
+      this.updateClouds();
+      this.updateBackgroundTrees();
+      this.checkCollisions();
+      this.updateGameSpeed();
+      this.updateHitTimestamps();
+      this.updateSessionStats();
+      this.updateUI();
+      this.updateDistance();
+      this.checkIntegrity(); // Periodic integrity check
+
+      // Draw everything
+      this.draw();
+    } else if (this.gameState === "paused") {
+      // Just draw when paused (no updates)
+      this.draw();
+    } else if (this.gameState === "catching") {
+      // Update catching animation
+      this.updateCatchingAnimation();
+      this.draw();
+    }
+
+    // Continue the loop
     requestAnimationFrame(() => this.gameLoop());
+  }
+
+  updateDistance() {
+    // Update distance every few frames
+    if (this.gameState === "playing") {
+      this.distance += 0.5; // Increment distance over time
+      document.getElementById("distance").textContent = Math.floor(
+        this.distance
+      );
+      this.updateSessionStats(); // Update session stats with current distance
+
+      // Switch to night mode every 1000m
+      if (Math.floor(this.distance / 1000) % 2 === 1 && !this.isNightMode) {
+        this.isNightMode = true;
+      } else if (Math.floor(this.distance / 1000) % 2 === 0 && this.isNightMode) {
+        this.isNightMode = false;
+      }
+    }
+  }
+
+  checkIntegrity() {
+    const now = Date.now();
+    if (now - this._integrityCheck.lastCheck > this._integrityCheck.checkInterval) {
+      // Check if score seems reasonable based on game time
+      const gameTime = this.sessionStartTime ? (now - this.sessionStartTime) / 1000 : 0;
+      const maxExpectedScore = gameTime * 12; // Slightly more generous than validation
+
+      if (this.score > maxExpectedScore * 2) { // Allow some buffer but catch obvious hacks
+        console.warn('Integrity check failed: Score seems manipulated', this.score, 'expected max:', maxExpectedScore);
+        // Reset to reasonable value
+        this.score = Math.min(this.score, maxExpectedScore);
+      }
+
+      this._integrityCheck.lastCheck = now;
+    }
   }
 }
 
