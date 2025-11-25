@@ -1,4 +1,5 @@
 import express from "express";
+import cron from "node-cron";
 import cors from "cors";
 import dotenv from "dotenv";
 import { fileURLToPath } from 'url';
@@ -22,6 +23,77 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For parsing form data
 app.use(cookieParser()); // For parsing cookies
+
+// Scheduled leaderboard reset every 24 hours at midnight
+cron.schedule('0 0 * * *', async () => {
+  console.log('[CRON] Running daily leaderboard reset...');
+  try {
+    // Archive leaderboard: snapshot all active competitions before reset
+    const today = new Date().toISOString().slice(0, 10);
+    // Mark all active competitions as completed (if not already)
+    await new Promise((resolve, reject) => {
+      db.query(
+        "UPDATE daily_competitions SET status = 'completed', end_time = NOW() WHERE status = 'active' AND competition_date < ?",
+        [today],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+    // Clear pool_participations for previous days (not today)
+    await new Promise((resolve, reject) => {
+      db.query(
+        `DELETE pp FROM pool_participations pp
+         JOIN daily_competitions dc ON pp.competition_id = dc.id
+         WHERE dc.competition_date < ?`,
+        [today],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+    console.log('[CRON] Leaderboard reset complete.');
+  } catch (err) {
+    console.error('[CRON] Error during leaderboard reset:', err);
+  }
+});
+// Scheduled leaderboard reset every 24 hours at midnight Sri Lankan time (Asia/Colombo)
+cron.schedule('0 0 * * *', async () => {
+  console.log('[CRON] Running daily leaderboard reset (Asia/Colombo)...');
+  try {
+    // Archive leaderboard: snapshot all active competitions before reset
+    const today = new Date().toISOString().slice(0, 10);
+    // Mark all active competitions as completed (if not already)
+    await new Promise((resolve, reject) => {
+      db.query(
+        "UPDATE daily_competitions SET status = 'completed', end_time = NOW() WHERE status = 'active' AND competition_date < ?",
+        [today],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+    // Clear pool_participations for previous days (not today)
+    await new Promise((resolve, reject) => {
+      db.query(
+        `DELETE pp FROM pool_participations pp
+         JOIN daily_competitions dc ON pp.competition_id = dc.id
+         WHERE dc.competition_date < ?`,
+        [today],
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+    console.log('[CRON] Leaderboard reset complete.');
+  } catch (err) {
+    console.error('[CRON] Error during leaderboard reset:', err);
+  }
+}, { timezone: 'Asia/Colombo' });
 
 // Set up EJS as the view engine
 app.set('view engine', 'ejs');
