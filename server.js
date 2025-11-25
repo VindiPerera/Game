@@ -2492,7 +2492,7 @@ app.post("/api/sessions", async (req, res) => {
   }
 
   // Distance validation: distance should be proportional to duration (game speed ~7 pixels/frame, 60 FPS)
-  const minExpectedDistance = durationSeconds * 200; // Minimum reasonable distance
+  const minExpectedDistance = durationSeconds * 100; // Minimum reasonable distance (accounting for slowdowns)
   const maxExpectedDistance = durationSeconds * 600; // Maximum reasonable distance (with speed boosts)
   if (distanceTraveled < minExpectedDistance && durationSeconds > 10) {
     validationErrors.push(`Distance traveled (${distanceTraveled}) is too low for duration (${durationSeconds}s)`);

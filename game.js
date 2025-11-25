@@ -5003,7 +5003,7 @@ class EndlessRunner {
 
     // Update distance every few frames
     if (this.gameState === "playing") {
-      this.distance += 0.5; // Increment distance over time
+      this.distance += this.gameSpeed; // Increment distance by current game speed
       document.getElementById("distance").textContent = Math.floor(
         this.distance
       );
@@ -5465,7 +5465,7 @@ class EndlessRunner {
   updateDistance() {
     // Update distance every few frames
     if (this.gameState === "playing") {
-      this.distance += 0.5; // Increment distance over time
+      this.distance += this.gameSpeed; // Increment distance by current game speed
       document.getElementById("distance").textContent = Math.floor(
         this.distance
       );
