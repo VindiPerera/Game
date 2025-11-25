@@ -14,18 +14,6 @@ const db = mysql.createConnection({
 const createTables = () => {
   console.log("Creating database tables...");
 
-  let completed = 0;
-  const total = 9; // Total number of tables
-
-  const checkComplete = () => {
-    completed++;
-    if (completed === total) {
-      console.log("Database initialization completed!");
-      db.end(); // Close connection
-      process.exit(0);
-    }
-  };
-
   // Drop existing tables first (for schema updates)
   const dropTables = () => {
     console.log("Dropping existing tables...");
@@ -38,12 +26,29 @@ const createTables = () => {
       'daily_competitions',
       'pricing_pools',
       'payment_methods',
+      'scores', // Old table
       'users'
     ];
     
-    tablesToDrop.forEach(table => {
-      db.query(`DROP TABLE IF EXISTS ${table}`, (err) => {
-        if (err) console.error(`Error dropping ${table} table:`, err);
+    // Disable foreign key checks
+    db.query('SET FOREIGN_KEY_CHECKS = 0', (err) => {
+      if (err) console.error('Error disabling foreign key checks:', err);
+      
+      // Drop tables
+      let dropsCompleted = 0;
+      tablesToDrop.forEach(table => {
+        db.query(`DROP TABLE IF EXISTS ${table}`, (dropErr) => {
+          if (dropErr) console.error(`Error dropping ${table} table:`, dropErr);
+          dropsCompleted++;
+          if (dropsCompleted === tablesToDrop.length) {
+            // Re-enable foreign key checks
+            db.query('SET FOREIGN_KEY_CHECKS = 1', (enableErr) => {
+              if (enableErr) console.error('Error re-enabling foreign key checks:', enableErr);
+              // Now proceed to create tables
+              createTablesSequentially();
+            });
+          }
+        });
       });
     });
   };
@@ -119,7 +124,7 @@ const createTables = () => {
       entry_fee_paid DECIMAL(10,2) NOT NULL,
       best_score INT DEFAULT 0,
       best_session_id INT DEFAULT NULL,
-      rank INT DEFAULT NULL,
+      \`rank\` INT DEFAULT NULL,
       is_winner BOOLEAN DEFAULT FALSE,
       prize_amount DECIMAL(10,2) DEFAULT 0.00,
       prize_paid BOOLEAN DEFAULT FALSE,
@@ -133,7 +138,7 @@ const createTables = () => {
       INDEX idx_pool_id (pool_id),
       INDEX idx_competition_id (competition_id),
       INDEX idx_user_pool (user_id, pool_id),
-      INDEX idx_rank (rank),
+      INDEX idx_rank (\`rank\`),
       INDEX idx_is_winner (is_winner),
       INDEX idx_best_score (best_score),
       INDEX idx_competition_score (competition_id, best_score)
@@ -272,108 +277,85 @@ const createTables = () => {
   // Drop tables first, then create them
   dropTables();
 
-  // Execute table creation (with slight delay to ensure drops complete)
-  setTimeout(() => {
-    // Create users table
-    db.query(createUsersTable, (err) => {
-      if (err) {
-        console.error("Error creating users table:", err);
-      } else {
-        console.log("✅ Users table created");
-      }
-      checkComplete();
-    });
+  const createTablesSequentially = () => {
+    let step = 0;
+    const steps = [
+      // 0: users
+      () => db.query(createUsersTable, (err) => {
+        if (err) console.error("Error creating users table:", err);
+        else console.log("✅ Users table created");
+        nextStep();
+      }),
+      // 1: pricing_pools
+      () => db.query(createPricingPoolsTable, (err) => {
+        if (err) console.error("Error creating pricing_pools table:", err);
+        else {
+          console.log("✅ Pricing pools table created");
+          db.query(insertDefaultPools, (insertErr) => {
+            if (insertErr) console.error("Error inserting default pools:", insertErr);
+            else console.log("✅ Default pricing pools inserted");
+            nextStep();
+          });
+        }
+      }),
+      // 2: daily_competitions
+      () => db.query(createDailyCompetitionsTable, (err) => {
+        if (err) console.error("Error creating daily_competitions table:", err);
+        else console.log("✅ Daily competitions table created");
+        nextStep();
+      }),
+      // 3: pool_participations
+      () => db.query(createPoolParticipationsTable, (err) => {
+        if (err) console.error("Error creating pool_participations table:", err);
+        else console.log("✅ Pool participations table created");
+        nextStep();
+      }),
+      // 4: game_sessions
+      () => db.query(createGameSessionsTable, (err) => {
+        if (err) console.error("Error creating game_sessions table:", err);
+        else console.log("✅ Game sessions table created");
+        nextStep();
+      }),
+      // 5: wallet_transactions
+      () => db.query(createWalletTransactionsTable, (err) => {
+        if (err) console.error("Error creating wallet_transactions table:", err);
+        else console.log("✅ Wallet transactions table created");
+        nextStep();
+      }),
+      // 6: withdrawal_requests
+      () => db.query(createWithdrawalRequestsTable, (err) => {
+        if (err) console.error("Error creating withdrawal_requests table:", err);
+        else console.log("✅ Withdrawal requests table created");
+        nextStep();
+      }),
+      // 7: payment_methods
+      () => db.query(createPaymentMethodsTable, (err) => {
+        if (err) console.error("Error creating payment_methods table:", err);
+        else console.log("✅ Payment methods table created");
+        nextStep();
+      }),
+      // 8: leaderboard_snapshots
+      () => db.query(createLeaderboardSnapshotsTable, (err) => {
+        if (err) console.error("Error creating leaderboard_snapshots table:", err);
+        else console.log("✅ Leaderboard snapshots table created");
+        nextStep();
+      })
+    ];
 
-    // Create pricing_pools table
-    db.query(createPricingPoolsTable, (err) => {
-      if (err) {
-        console.error("Error creating pricing_pools table:", err);
+    const nextStep = () => {
+      step++;
+      if (step < steps.length) {
+        steps[step]();
       } else {
-        console.log("✅ Pricing pools table created");
-        
-        // Insert default pricing pools
-        db.query(insertDefaultPools, (insertErr) => {
-          if (insertErr) {
-            console.error("Error inserting default pools:", insertErr);
-          } else {
-            console.log("✅ Default pricing pools inserted");
-          }
-        });
+        console.log("Database initialization completed!");
+        db.end();
+        process.exit(0);
       }
-      checkComplete();
-    });
+    };
 
-    // Create daily_competitions table
-    db.query(createDailyCompetitionsTable, (err) => {
-      if (err) {
-        console.error("Error creating daily_competitions table:", err);
-      } else {
-        console.log("✅ Daily competitions table created");
-      }
-      checkComplete();
-    });
-
-    // Create pool_participations table
-    db.query(createPoolParticipationsTable, (err) => {
-      if (err) {
-        console.error("Error creating pool_participations table:", err);
-      } else {
-        console.log("✅ Pool participations table created");
-      }
-      checkComplete();
-    });
-
-    // Create game_sessions table
-    db.query(createGameSessionsTable, (err) => {
-      if (err) {
-        console.error("Error creating game_sessions table:", err);
-      } else {
-        console.log("✅ Game sessions table created");
-      }
-      checkComplete();
-    });
-
-    // Create wallet_transactions table
-    db.query(createWalletTransactionsTable, (err) => {
-      if (err) {
-        console.error("Error creating wallet_transactions table:", err);
-      } else {
-        console.log("✅ Wallet transactions table created");
-      }
-      checkComplete();
-    });
-
-    // Create withdrawal_requests table
-    db.query(createWithdrawalRequestsTable, (err) => {
-      if (err) {
-        console.error("Error creating withdrawal_requests table:", err);
-      } else {
-        console.log("✅ Withdrawal requests table created");
-      }
-      checkComplete();
-    });
-
-    // Create payment_methods table
-    db.query(createPaymentMethodsTable, (err) => {
-      if (err) {
-        console.error("Error creating payment_methods table:", err);
-      } else {
-        console.log("✅ Payment methods table created");
-      }
-      checkComplete();
-    });
-
-    // Create leaderboard_snapshots table
-    db.query(createLeaderboardSnapshotsTable, (err) => {
-      if (err) {
-        console.error("Error creating leaderboard_snapshots table:", err);
-      } else {
-        console.log("✅ Leaderboard snapshots table created");
-      }
-      checkComplete();
-    });
-
-  }, 500); // Increased delay to ensure all drops complete
+    // Start with first step
+    steps[0]();
+  };
 };
 
 // Connect and create tables
