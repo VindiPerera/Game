@@ -36,15 +36,19 @@
         <a href="/game" class="btn btn-success">🎮 Play Game</a>
     </div>
 
+   
+
     <table class="table bg-white rounded shadow-sm">
         <thead class="table-light">
             <tr>
-                <th>Id</th>
-                <th>Coins</th>
+                <th>Session</th>
+                <th>Score</th>
                 <th>Duration</th>
+                
                 <th>Hits</th>
                 <th>Powerups</th>
                 <th>Distance</th>
+                <th>Pool</th>
                 <th>Result</th>
                 <th>Date</th>
             </tr>
@@ -53,20 +57,28 @@
         <tbody>
             <% history.forEach(session => { %>
                 <tr>
-                    <td><%= session.session_id %></td>
-
-
-                    <td class="text-danger fw-bold">
-                        <%= session.final_score %>
+                    <td><span class="badge bg-secondary"><%= session.session_id %></span></td>
+                    
+                    <td class="text-primary fw-bold fs-5">
+                        🏆 <%= session.final_score %>
                     </td>
 
-                    <td>⏱ <%= session.duration_seconds %>s</td>
+                    <td>⏱️ <%= session.duration_seconds %>s</td>
+
+                    
 
                     <td style="color:#e83e8c">💥 <%= session.obstacles_hit %></td>
 
                     <td style="color:#fd7e14">⚡ <%= session.powerups_collected %></td>
 
                     <td style="color:#0d6efd">📏 <%= session.distance_traveled %>m</td>
+
+                    <td>
+                        <span class="badge <%= session.pool_name === 'Free Play' ? 'bg-success' : 'bg-warning text-dark' %>">
+                            <%= session.pool_name %>
+                            <% if (session.entry_fee > 0) { %>($<%= session.entry_fee %>)<% } %>
+                        </span>
+                    </td>
 
                     <td>
                         <span class="result-badge <%= session.game_result %>">
