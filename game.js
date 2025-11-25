@@ -5,12 +5,19 @@ class EndlessRunner {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
 
-    // Anti-tampering: Monitor critical properties
+    // Anti-tampering: Monitor critical properties and functions
     this._integrityCheck = {
       score: 0,
       lastCheck: Date.now(),
-      checkInterval: 5000 // Check every 5 seconds
+      checkInterval: 5000, // Check every 5 seconds
+      tamperingDetected: false,
+      originalFunctions: new Map()
     };
+
+    // Store original function references
+    this._integrityCheck.originalFunctions.set('updateScore', this.updateScore.bind(this));
+    this._integrityCheck.originalFunctions.set('saveScore', this.saveScore.bind(this));
+    this._integrityCheck.originalFunctions.set('endSession', this.endSession.bind(this));
 
     // Override property setters for critical values
     let _score = 0;
@@ -18,11 +25,17 @@ class EndlessRunner {
       get: () => _score,
       set: (value) => {
         if (typeof value === 'number' && value >= 0 && value <= 100000) {
+          // Check for suspicious score changes
+          if (value > _score + 1000) { // Score increased by more than 1000 at once
+            console.warn('Suspicious score increase detected');
+            this._integrityCheck.tamperingDetected = true;
+          }
           _score = value;
           this._integrityCheck.score = value;
           this._integrityCheck.lastCheck = Date.now();
         } else {
           console.warn('Invalid score value attempted:', value);
+          this._integrityCheck.tamperingDetected = true;
         }
       }
     });
@@ -2021,7 +2034,8 @@ class EndlessRunner {
         duration: duration,
         coins: this.sessionStats.coinsCollected,
         obstacles: this.sessionStats.obstaclesHit
-      }))
+      })),
+      tamperingDetected: this._integrityCheck.tamperingDetected
     };
 
     // Add guest user information if playing as guest

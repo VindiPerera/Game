@@ -2444,53 +2444,106 @@ app.post("/api/sessions", async (req, res) => {
     powerupsCollected,
     distanceTraveled,
     gameResult,
-    poolParticipationId
+    poolParticipationId,
+    tamperingDetected
   } = req.body;
+
+  // Check for tampering detection
+  if (tamperingDetected) {
+    console.log("Tampering detected in client-side code - rejecting session");
+    return res.status(400).json({ 
+      message: "Session rejected: Client-side tampering detected. Please refresh the page and play legitimately.",
+      error: "tampering_detected"
+    });
+  }
 
   // Always generate a new 7-digit session ID
   const sessionId = generateSessionId();
 
-  // Validate session data to prevent cheating
+  // Enhanced validation to prevent cheating
   const validationErrors = [];
 
   // Basic validation
-  if (typeof finalScore !== 'number' || finalScore < 0) {
-    validationErrors.push('Invalid score: must be a non-negative number');
+  if (typeof finalScore !== 'number' || finalScore < 0 || finalScore > 100000) {
+    validationErrors.push('Invalid score: must be a number between 0 and 100,000');
   }
 
-  if (typeof coinsCollected !== 'number' || coinsCollected < 0) {
-    validationErrors.push('Invalid coins collected: must be a non-negative number');
+  if (typeof coinsCollected !== 'number' || coinsCollected < 0 || coinsCollected > 10000) {
+    validationErrors.push('Invalid coins collected: must be between 0 and 10,000');
   }
 
-  if (typeof durationSeconds !== 'number' || durationSeconds < 0) {
-    validationErrors.push('Invalid duration: must be a non-negative number');
+  if (typeof durationSeconds !== 'number' || durationSeconds < 0 || durationSeconds > 3600) {
+    validationErrors.push('Invalid duration: must be between 0 and 3,600 seconds');
   }
 
-  if (typeof distanceTraveled !== 'number' || distanceTraveled < 0) {
-    validationErrors.push('Invalid distance: must be a non-negative number');
+  if (typeof distanceTraveled !== 'number' || distanceTraveled < 0 || distanceTraveled > 1000000) {
+    validationErrors.push('Invalid distance: must be between 0 and 1,000,000');
   }
 
-  // Score validation: score should not exceed coins collected * 2 (accounting for double coins power-up)
-  if (finalScore > (coinsCollected || 0) * 2) {
-    validationErrors.push(`Score (${finalScore}) exceeds maximum possible (${(coinsCollected || 0) * 2}) based on coins collected`);
+  // Score validation: score should equal coins collected (or up to 2x with power-ups)
+  const maxPossibleScore = (coinsCollected || 0) * 2;
+  if (finalScore > maxPossibleScore) {
+    validationErrors.push(`Score (${finalScore}) exceeds maximum possible (${maxPossibleScore}) based on coins collected`);
   }
 
-  // Distance validation: distance should not exceed a reasonable speed (game speed is ~7 pixels/frame, 60 FPS = ~420 pixels/second)
-  const maxReasonableDistance = durationSeconds * 500; // Allow some margin for speed boosts
-  if (distanceTraveled > maxReasonableDistance) {
-    validationErrors.push(`Distance traveled (${distanceTraveled}) exceeds maximum reasonable distance (${maxReasonableDistance}) for duration`);
+  // Minimum score validation: score should be at least coins collected
+  if (finalScore < (coinsCollected || 0)) {
+    validationErrors.push(`Score (${finalScore}) cannot be less than coins collected (${coinsCollected || 0})`);
   }
 
-  // Score should not be impossibly high for the game duration (prevent instant high scores)
-  const maxReasonableScore = Math.max(durationSeconds * 10, 1000); // At least 10 points per second or 1000 minimum
-  if (finalScore > maxReasonableScore) {
-    validationErrors.push(`Score (${finalScore}) is unreasonably high for game duration (${durationSeconds}s)`);
+  // Distance validation: distance should be proportional to duration (game speed ~7 pixels/frame, 60 FPS)
+  const minExpectedDistance = durationSeconds * 200; // Minimum reasonable distance
+  const maxExpectedDistance = durationSeconds * 600; // Maximum reasonable distance (with speed boosts)
+  if (distanceTraveled < minExpectedDistance && durationSeconds > 10) {
+    validationErrors.push(`Distance traveled (${distanceTraveled}) is too low for duration (${durationSeconds}s)`);
+  }
+  if (distanceTraveled > maxExpectedDistance) {
+    validationErrors.push(`Distance traveled (${distanceTraveled}) exceeds maximum reasonable distance (${maxExpectedDistance}) for duration`);
   }
 
-  // Coins collected should not exceed reasonable rate
-  const maxReasonableCoins = durationSeconds * 5; // 5 coins per second max
-  if ((coinsCollected || 0) > maxReasonableCoins) {
-    validationErrors.push(`Coins collected (${coinsCollected}) exceeds maximum reasonable rate for duration`);
+  // Score progression validation: score should be proportional to distance
+  const expectedScoreFromDistance = Math.floor(distanceTraveled / 10); // Roughly 1 point per 10 pixels
+  if (finalScore > expectedScoreFromDistance * 3) { // Allow 3x multiplier for power-ups
+    validationErrors.push(`Score (${finalScore}) is unreasonably high for distance traveled (${distanceTraveled})`);
+  }
+
+  // Duration validation: prevent instant completion with high scores
+  if (durationSeconds < 30 && finalScore > 500) {
+    validationErrors.push(`Score (${finalScore}) is too high for short game duration (${durationSeconds}s)`);
+  }
+
+  // Coins per second validation
+  const coinsPerSecond = durationSeconds > 0 ? (coinsCollected || 0) / durationSeconds : 0;
+  if (coinsPerSecond > 8) { // Maximum 8 coins per second (very generous)
+    validationErrors.push(`Coin collection rate (${coinsPerSecond.toFixed(2)}/s) exceeds maximum reasonable rate`);
+  }
+
+  // Obstacles hit validation: shouldn't be too many for short games
+  const obstaclesPerSecond = durationSeconds > 0 ? (obstaclesHit || 0) / durationSeconds : 0;
+  if (obstaclesPerSecond > 3) { // Maximum 3 obstacles per second
+    validationErrors.push(`Obstacle hit rate (${obstaclesPerSecond.toFixed(2)}/s) exceeds maximum reasonable rate`);
+  }
+
+  // Power-ups validation: shouldn't be too many
+  if ((powerupsCollected || 0) > 20) {
+    validationErrors.push('Power-ups collected exceeds maximum reasonable amount');
+  }
+
+  // Cross-validation: if many obstacles hit, score should be lower
+  if ((obstaclesHit || 0) > 10 && finalScore > 1000) {
+    validationErrors.push('Score is suspiciously high given the number of obstacles hit');
+  }
+
+  // Check for suspicious patterns (all metrics at maximum)
+  const suspiciousFlags = [
+    finalScore > 50000,
+    coinsCollected > 5000,
+    distanceTraveled > 500000,
+    durationSeconds < 60 && finalScore > 2000
+  ].filter(Boolean).length;
+
+  if (suspiciousFlags >= 3) {
+    validationErrors.push('Multiple suspicious metrics detected - possible cheating');
   }
 
   if (validationErrors.length > 0) {
