@@ -44,6 +44,15 @@ class EndlessRunnerGame {
 
     // Game world constants
     this.ground = options.ground || 600; // Ground height from client window
+    this.canvas = { width: 1200, height: 600 }; // Canvas approximation for server-side
+
+    // Ground details arrays
+    this.grassBlades = [];
+    this.dirtParticles = [];
+    this.fallenLeaves = [];
+    this.mossPatches = [];
+    this.groundNoise = [];
+    this.leafColors = ['#8B4513', '#A0522D', '#CD853F', '#D2691E'];
 
     // Player properties
     this.player = {
@@ -118,6 +127,70 @@ class EndlessRunnerGame {
 
     // UI state for client-side updates
     this.uiState = {};
+
+    // Initialize ground details
+    this.initializeGroundDetails();
+  }
+
+  initializeGroundDetails() {
+    // Initialize grass blades
+    this.grassBlades = [];
+    for (let i = 0; i < 50; i++) {
+      this.grassBlades.push({
+        x: Math.random() * this.canvas.width,
+        y: this.ground - Math.random() * 10,
+        height: 8 + Math.random() * 12,
+        phase: Math.random() * Math.PI * 2
+      });
+    }
+
+    // Initialize dirt particles
+    this.dirtParticles = [];
+    for (let i = 0; i < 30; i++) {
+      const seed = Math.random() * 1000;
+      this.dirtParticles.push({
+        x: Math.random() * this.canvas.width,
+        y: this.ground + 5 + (seed % (this.canvas.height - this.ground - 25)),
+        size: 1 + (seed % 3)
+      });
+    }
+
+    // Initialize fallen leaves
+    this.fallenLeaves = [];
+    for (let i = 0; i < 20; i++) {
+      const seed = Math.random() * 1000;
+      this.fallenLeaves.push({
+        x: Math.random() * this.canvas.width,
+        y: this.ground + 10 + (seed % (this.canvas.height - this.ground - 30)),
+        size: 3 + (seed % 4),
+        rotation: (seed % (Math.PI * 2)),
+        color: this.leafColors[Math.floor(seed % this.leafColors.length)]
+      });
+    }
+
+    // Initialize moss patches
+    this.mossPatches = [];
+    for (let i = 0; i < 15; i++) {
+      const seed = Math.random() * 1000;
+      this.mossPatches.push({
+        x: Math.random() * this.canvas.width,
+        y: this.ground + 15 + (seed % (this.canvas.height - this.ground - 35)),
+        width: 20 + (seed % 40),
+        height: 8 + (seed % 15),
+        rotation: (seed % Math.PI)
+      });
+    }
+
+    // Initialize ground noise
+    this.groundNoise = [];
+    for (let i = 0; i < 100; i++) {
+      const seed = Math.random() * 1000;
+      this.groundNoise.push({
+        x: Math.random() * this.canvas.width,
+        y: this.ground + (seed % (this.canvas.height - this.ground)),
+        size: 0.5 + (seed % 1.5)
+      });
+    }
   }
 
   processInput(input) {
@@ -234,8 +307,6 @@ class EndlessRunnerGame {
     this.dangerousAreas = [];
     this.pendulums = [];
     this.ropes = [];
-
-    // Reset timers
     this.obstacleTimer = 0;
     this.birdTimer = 0;
     this.spikeTimer = 0;
@@ -644,43 +715,85 @@ class EndlessRunnerGame {
     }
 
     // Check obstacle collisions
-    if (!this.invulnerable) {
-      // Check regular obstacles
-      for (let obstacle of this.obstacles) {
-        if (this.isColliding(this.player, obstacle)) {
+    // Check regular obstacles
+    for (let obstacle of this.obstacles) {
+      if (this.isColliding(this.player, obstacle)) {
+        if (this.invulnerable && this.shieldHits > 0) {
+          // Shield active - consume it on hit
+          this.shieldHits--;
+          if (this.shieldHits <= 0) {
+            this.invulnerable = false;
+            this.invulnerableTimer = 0;
+          }
+          // Show shield break effect
+          this.showShieldBreakEffect();
+        } else if (!this.invulnerable) {
           this.handleObstacleHit();
-          break;
         }
+        break;
       }
+    }
 
-      // Check birds
-      for (let bird of this.birds) {
-        if (this.isColliding(this.player, bird)) {
+    // Check birds
+    for (let bird of this.birds) {
+      if (this.isColliding(this.player, bird)) {
+        if (this.invulnerable && this.shieldHits > 0) {
+          // Shield active - consume it on hit
+          this.shieldHits--;
+          if (this.shieldHits <= 0) {
+            this.invulnerable = false;
+            this.invulnerableTimer = 0;
+          }
+          // Show shield break effect
+          this.showShieldBreakEffect();
+        } else if (!this.invulnerable) {
           this.handleObstacleHit();
-          break;
         }
+        break;
       }
+    }
 
-      // Check fire traps
-      for (let trap of this.fireTraps) {
-        if (trap.active && this.isColliding(this.player, trap)) {
+    // Check fire traps
+    for (let trap of this.fireTraps) {
+      if (trap.active && this.isColliding(this.player, trap)) {
+        if (this.invulnerable && this.shieldHits > 0) {
+          // Shield active - consume it on hit
+          this.shieldHits--;
+          if (this.shieldHits <= 0) {
+            this.invulnerable = false;
+            this.invulnerableTimer = 0;
+          }
+          // Show shield break effect
+          this.showShieldBreakEffect();
+        } else if (!this.invulnerable) {
           this.handleObstacleHit();
-          break;
         }
+        break;
       }
+    }
 
-      // Check pendulums
-      for (let pendulum of this.pendulums) {
-        const axeRect = {
-          x: pendulum.x + pendulum.length * Math.sin(pendulum.angle),
-          y: pendulum.y - pendulum.length * Math.cos(pendulum.angle),
-          width: pendulum.axeWidth,
-          height: pendulum.axeHeight
-        };
-        if (this.isColliding(this.player, axeRect)) {
+    // Check pendulums
+    for (let pendulum of this.pendulums) {
+      const axeRect = {
+        x: pendulum.x + pendulum.length * Math.sin(pendulum.angle),
+        y: pendulum.y - pendulum.length * Math.cos(pendulum.angle),
+        width: pendulum.axeWidth,
+        height: pendulum.axeHeight
+      };
+      if (this.isColliding(this.player, axeRect)) {
+        if (this.invulnerable && this.shieldHits > 0) {
+          // Shield active - consume it on hit
+          this.shieldHits--;
+          if (this.shieldHits <= 0) {
+            this.invulnerable = false;
+            this.invulnerableTimer = 0;
+          }
+          // Show shield break effect
+          this.showShieldBreakEffect();
+        } else if (!this.invulnerable) {
           this.handleObstacleHit();
-          break;
         }
+        break;
       }
     }
 
@@ -743,6 +856,30 @@ class EndlessRunnerGame {
   showHitEffect() {
     // Flash effect (implemented in draw method)
     this.hitFlash = 40; // Flash for about 0.7 seconds
+  }
+
+  showShieldBreakEffect() {
+    // Shield break effect - particles and flash
+    this.hitFlash = 20; // Shorter flash for shield break
+    // Create shield break particles
+    this.createShieldBreakParticles(this.player.x + this.player.width / 2, this.player.y + this.player.height / 2);
+  }
+
+  createShieldBreakParticles(x, y) {
+    // Create shield break particles
+    for (let i = 0; i < 8; i++) {
+      const angle = (Math.PI * 2 * i) / 8;
+      const speed = 2 + Math.random() * 3;
+      const particle = {
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 30 + Math.random() * 20,
+        color: '#00ffff' // Cyan color for shield particles
+      };
+      this.particles.push(particle);
+    }
   }
 
   playHitSound() {
@@ -903,7 +1040,11 @@ class EndlessRunnerGame {
     this.pendulums = [];
     this.backgroundTrees = [];
     this.ropes = []; // Reset ropes
-    this.dangerousAreas = []; // Reset dangerous areas tracking
+    this.grassBlades = [];
+    this.dirtParticles = [];
+    this.fallenLeaves = [];
+    this.mossPatches = [];
+    this.groundNoise = [];    this.dangerousAreas = []; // Reset dangerous areas tracking
     this.player.y = this.ground - 60;
     this.player.velocityY = 0;
     this.player.jumping = false;
@@ -1473,9 +1614,76 @@ class EndlessRunnerGame {
       return tree.x + 50 > -100;
     });
 
+    // Update ground details
+    this.updateGroundDetails();
+
     // Toggle night mode occasionally
     if (Math.random() < 0.001) {
       this.isNightMode = !this.isNightMode;
+    }
+  }
+
+  updateGroundDetails() {
+    // Move ground details left to create running effect
+    const scrollSpeed = this.gameSpeed; // Match obstacle speed
+
+    // Update grass blades
+    for (let blade of this.grassBlades) {
+      blade.x -= scrollSpeed;
+      // Wrap around when off screen
+      if (blade.x < -10) {
+        blade.x = this.canvas.width + Math.random() * 50;
+        blade.height = 8 + (blade.x * 0.01) % 12; // Recalculate height
+        blade.phase = (blade.x * 0.1) % (Math.PI * 2); // Recalculate phase
+      }
+    }
+
+    // Update dirt particles
+    for (let particle of this.dirtParticles) {
+      particle.x -= scrollSpeed;
+      if (particle.x < -10) {
+        particle.x = this.canvas.width + Math.random() * 100;
+        const seed = particle.x * 17;
+        particle.y = this.ground + 5 + (seed % (this.canvas.height - this.ground - 25));
+        particle.size = 1 + (seed % 3);
+      }
+    }
+
+    // Update fallen leaves
+    for (let leaf of this.fallenLeaves) {
+      leaf.x -= scrollSpeed;
+      if (leaf.x < -20) {
+        leaf.x = this.canvas.width + Math.random() * 150;
+        const seed = leaf.x * 29;
+        leaf.y = this.ground + 10 + (seed % (this.canvas.height - this.ground - 30));
+        leaf.size = 3 + (seed % 4);
+        leaf.rotation = (seed % (Math.PI * 2));
+        leaf.color = this.leafColors[Math.floor(seed % this.leafColors.length)];
+      }
+    }
+
+    // Update moss patches
+    for (let moss of this.mossPatches) {
+      moss.x -= scrollSpeed;
+      if (moss.x < -50) {
+        moss.x = this.canvas.width + Math.random() * 200;
+        const seed = moss.x * 53;
+        moss.y = this.ground + 15 + (seed % (this.canvas.height - this.ground - 35));
+        moss.width = 20 + (seed % 40);
+        moss.height = 8 + (seed % 15);
+        moss.rotation = (seed % Math.PI);
+      }
+    }
+
+    // Update ground noise
+    for (let noise of this.groundNoise) {
+      noise.x -= scrollSpeed;
+      if (noise.x < -5) {
+        noise.x = this.canvas.width + Math.random() * 50;
+        const seed = noise.x * 79;
+        noise.y = this.ground + (seed % (this.canvas.height - this.ground));
+        noise.size = 0.5 + (seed % 1.5);
+      }
     }
   }
 
@@ -1859,6 +2067,11 @@ class EndlessRunnerGame {
       monster: this.monster,
       clouds: this.clouds,
       backgroundTrees: this.backgroundTrees,
+      grassBlades: this.grassBlades,
+      dirtParticles: this.dirtParticles,
+      fallenLeaves: this.fallenLeaves,
+      mossPatches: this.mossPatches,
+      groundNoise: this.groundNoise,
       particles: this.particles,
       isNightMode: this.isNightMode,
       pendulums: this.pendulums,

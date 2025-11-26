@@ -303,7 +303,26 @@ class ClientGame {
 
   // Client-side game control methods
   startGame() {
+    // Hide start screen
     document.getElementById('startScreen').style.display = 'none';
+    // Hide game over screen (both display and hidden class)
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    if (gameOverScreen) {
+      gameOverScreen.style.display = 'none';
+      gameOverScreen.classList.add('hidden');
+    }
+    // Hide pause screen if visible
+    const pauseScreen = document.getElementById('pauseScreen');
+    if (pauseScreen) {
+      pauseScreen.style.display = 'none';
+    }
+    // Hide back link
+    const backLink = document.getElementById('backLink');
+    if (backLink) {
+      backLink.style.display = 'none';
+    }
+    // Reset game state to allow game over popup to show again
+    this.gameState = null;
     // Start new session
     this.startSession();
     // Emit start to server if needed
@@ -704,6 +723,9 @@ function renderGame(state) {
   // Draw obstacles
   drawObstacles(state);
 
+  // Draw moving platforms
+  drawMovingPlatforms(state);
+
   // Draw ropes
   drawRopes(state);
 
@@ -729,6 +751,8 @@ function renderGame(state) {
   ctx.font = "24px Arial";
   ctx.fillText(`Score: ${state.score || 0}`, 20, 40);
   ctx.fillText(`Distance: ${Math.floor(state.distance || 0)}`, 20, 70);
+
+  ctx.restore();
 }
 
 // Update UI elements
@@ -3400,6 +3424,81 @@ function drawRopes(state) {
     }
 
     ctx.restore();
+  });
+}
+
+// Draw moving platforms (forest theme)
+function drawMovingPlatforms(state) {
+  if (!state.movingPlatforms) return;
+
+  state.movingPlatforms.forEach((platform) => {
+    // Platform shadow
+    ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+    ctx.fillRect(
+      platform.x + 2,
+      platform.y + 2,
+      platform.width,
+      platform.height
+    );
+
+    // Highlight strategic platforms with a glow effect
+    if (platform.strategic) {
+      const pulseAlpha = 0.3 + Math.sin(Date.now() * 0.005) * 0.15;
+      ctx.shadowColor = "#4169E1";
+      ctx.shadowBlur = 15;
+
+      // Helper indicator line showing the danger below
+      ctx.strokeStyle = `rgba(65, 105, 225, ${pulseAlpha})`;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(
+        platform.x + platform.width / 2,
+        platform.y + platform.height
+      );
+      ctx.lineTo(platform.x + platform.width / 2, state.ground);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Log platform
+    ctx.fillStyle = platform.strategic ? "#A0522D" : "#8B4513"; // Lighter brown for strategic
+    ctx.fillRect(
+      platform.x,
+      platform.y,
+      platform.width,
+      platform.height
+    );
+
+    // Reset shadow
+    ctx.shadowBlur = 0;
+
+    // Log rings
+    ctx.strokeStyle = "#654321";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < platform.width; i += 10) {
+      ctx.beginPath();
+      ctx.arc(
+        platform.x + i + 5,
+        platform.y + platform.height / 2,
+        3,
+        0,
+        Math.PI * 2
+      );
+      ctx.stroke();
+    }
+
+    // Moss on log - with special color for strategic platforms
+    ctx.fillStyle = platform.strategic ? "#00FF00" : "#32CD32"; // Brighter green for strategic
+    ctx.fillRect(platform.x, platform.y, platform.width, 3);
+
+    // Add help icon for strategic platforms
+    if (platform.strategic) {
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "bold 12px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("!", platform.x + platform.width / 2, platform.y - 5);
+    }
   });
 }
 
