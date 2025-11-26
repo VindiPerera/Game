@@ -511,8 +511,27 @@ class EndlessRunnerGame {
       this.player.y += this.player.velocityY;
     }
 
-    // Ground collision
-    if (this.player.y >= this.ground - this.player.height) {
+    // Platform collision (check before ground collision)
+    let onPlatform = false;
+    if (this.player.velocityY >= 0) { // Only check when falling or moving down
+      for (let platform of this.movingPlatforms) {
+        if (this.player.x + this.player.width > platform.x &&
+            this.player.x < platform.x + platform.width &&
+            this.player.y + this.player.height >= platform.y &&
+            this.player.y + this.player.height <= platform.y + platform.height + 10) { // Allow some tolerance
+          // Land on platform
+          this.player.y = platform.y - this.player.height;
+          this.player.velocityY = 0;
+          this.player.jumping = false;
+          this.player.doubleJumpUsed = false; // Reset double jump when landing
+          onPlatform = true;
+          break;
+        }
+      }
+    }
+
+    // Ground collision (only if not on a platform)
+    if (!onPlatform && this.player.y >= this.ground - this.player.height) {
       this.player.y = this.ground - this.player.height;
       this.player.velocityY = 0;
       this.player.jumping = false;
@@ -560,8 +579,13 @@ class EndlessRunnerGame {
     this.movingPlatforms = this.movingPlatforms.filter((platform) => {
       platform.x -= this.gameSpeed;
       platform.y += platform.velocityY;
-      if (platform.y <= this.ground - 150 || platform.y >= this.ground - 60) {
+      // Adjust bounce bounds for higher floating platforms
+      const minY = this.ground - 160;
+      const maxY = this.ground - 70;
+      if (platform.y <= minY || platform.y >= maxY) {
         platform.velocityY *= -1;
+        // Keep within bounds
+        platform.y = Math.max(minY, Math.min(maxY, platform.y));
       }
       return platform.x + platform.width > 0;
     });
@@ -1222,10 +1246,10 @@ class EndlessRunnerGame {
           this.gaps.push({
             x: baseX,
             y: this.ground,
-            width: 80,
+            width: 540,
             height: 60,
           });
-          this.markDangerousArea(baseX + 40, 80, "gap");
+          this.markDangerousArea(baseX + 270, 540, "gap");
         } else if (obstacleType < 0.85) {
           // 10% - Rope crossing
           this.ropes.push({
@@ -1310,10 +1334,10 @@ class EndlessRunnerGame {
           this.gaps.push({
             x: baseX,
             y: this.ground,
-            width: 80,
+            width: 140,
             height: 60,
           });
-          this.markDangerousArea(baseX + 40, 80, "gap");
+          this.markDangerousArea(baseX + 70, 140, "gap");
         } else if (obstacleType < 0.9) {
           // 10% - Rope crossing
           this.ropes.push({
@@ -1482,57 +1506,42 @@ class EndlessRunnerGame {
   }
 
   spawnPlatformNearGap(gapX, gapWidth) {
-    // Spawn platforms near gaps to help players cross them
-    // Position multiple platforms for better coverage of large gap clusters
+    // Spawn floating platforms near gaps to help players cross them
+    // Since there are no multiple gaps combined, spawn platforms based on single gap width
 
-    // Calculate total gap cluster width if multiple gaps
-    let totalClusterWidth = gapWidth;
-    let clusterStartX = gapX - gapWidth / 2;
-
-    // Check if there are other gaps nearby (within 300 pixels)
-    this.gaps.forEach((gap) => {
-      const distance = Math.abs(gap.x - gapX);
-      if (distance < 300 && distance > 0) {
-        // Expand cluster width to include this gap
-        const gapEnd = gap.x + gap.width;
-        const currentEnd = clusterStartX + totalClusterWidth;
-        totalClusterWidth = Math.max(gapEnd - clusterStartX, totalClusterWidth);
-      }
-    });
-
-    // Determine number of platforms needed based on cluster size
+    // Determine number of platforms needed based on gap width
     let numPlatforms;
-    if (totalClusterWidth < 150) {
-      numPlatforms = 1; // Single gap - one platform
-    } else if (totalClusterWidth < 300) {
-      numPlatforms = 2; // Two gaps - two platforms
-    } else if (totalClusterWidth < 450) {
-      numPlatforms = 3; // Three gaps - three platforms
+    if (gapWidth < 150) {
+      numPlatforms = 1; // Small gap - one platform
+    } else if (gapWidth < 300) {
+      numPlatforms = 2; // Medium gap - two platforms
+    } else if (gapWidth < 450) {
+      numPlatforms = 3; // Large gap - three platforms
     } else {
-      numPlatforms = 4; // Four or more gaps - four platforms
+      numPlatforms = 4; // Very large gap - four platforms
     }
 
-    // Spawn platforms distributed across the gap cluster
+    // Spawn platforms distributed across the gap
     for (let i = 0; i < numPlatforms; i++) {
       // Distribute platforms evenly before and across the gap
       let platformX, platformY, platformWidth;
 
       if (i === 0) {
-        // First platform: before the gap cluster
-        platformX = clusterStartX - 100 - Math.random() * 30;
-        platformY = this.ground - 80 - Math.random() * 20;
-        platformWidth = 100 + Math.random() * 30;
+        // First platform: before the gap
+        platformX = gapX - gapWidth / 2 - 120 - Math.random() * 20;
+        platformY = this.ground - 100 - Math.random() * 10; // Higher and more visible
+        platformWidth = 120 + Math.random() * 20; // Wider for better visibility
       } else {
         // Subsequent platforms: distributed across the gap
-        const spacing = totalClusterWidth / (numPlatforms - 0.5);
-        platformX = clusterStartX + spacing * i - 50;
-        platformY = this.ground - 90 - Math.random() * 30;
-        platformWidth = 90 + Math.random() * 40;
+        const spacing = gapWidth / (numPlatforms - 0.5);
+        platformX = gapX - gapWidth / 2 + spacing * i - 60;
+        platformY = this.ground - 110 - Math.random() * 20; // Higher floating position
+        platformWidth = 100 + Math.random() * 30; // Good size for jumping
       }
 
       // Check if there's already a platform too close
       const tooClose = this.movingPlatforms.some(
-        (p) => Math.abs(p.x - platformX) < 100
+        (p) => Math.abs(p.x - platformX) < 120 // More spacing
       );
 
       if (!tooClose) {
@@ -1540,9 +1549,9 @@ class EndlessRunnerGame {
           x: platformX,
           y: platformY,
           width: platformWidth,
-          height: 15,
-          velocityY: (Math.random() - 0.5) * 1.5, // Slower movement for stability
-          bounceRange: 35,
+          height: 20, // Slightly taller for better collision
+          velocityY: (Math.random() - 0.5) * 2.0, // More noticeable floating
+          bounceRange: 40, // Allow more vertical movement
           strategic: true, // Mark as strategic platform
           dangerType: "gap",
         });

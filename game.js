@@ -8,6 +8,19 @@ canvas.height = window.innerHeight;
 
 // Client-side game state and methods
 class ClientGame {
+    resetGameState() {
+      // Reset all relevant game state variables
+      this.score = 0;
+      this.distance = 0;
+      this.gameState = null;
+      this.isNightMode = false;
+      this.sessionId = null;
+      this.sessionStartTime = null;
+      this.sessionStats = null;
+      this._integrityCheck = { tamperingDetected: false };
+      // Optionally reset other gameplay variables if needed
+      // If you have more state (powerups, etc.), reset them here
+    }
   constructor() {
     this.gameState = null;
     this.score = 0;
@@ -321,8 +334,8 @@ class ClientGame {
     if (backLink) {
       backLink.style.display = 'none';
     }
-    // Reset game state to allow game over popup to show again
-    this.gameState = null;
+    // Reset all game state variables
+    this.resetGameState();
     // Start new session
     this.startSession();
     // Emit start to server if needed
@@ -360,10 +373,10 @@ class ClientGame {
 
   restartGame() {
     document.getElementById('gameOverScreen').style.display = 'none';
+    // Reset all game state variables
+    this.resetGameState();
     // Start new session
     this.startSession();
-    // Reset game state to allow game over popup to show again
-    this.gameState = null;
     socket.emit('restart');
   }
 
@@ -535,6 +548,9 @@ class ClientGame {
     // Draw obstacles
     drawObstacles(state);
 
+    // Draw moving platforms
+    drawMovingPlatforms(state);
+
     // Draw power-ups
     drawPowerUps(state);
 
@@ -562,10 +578,10 @@ class ClientGame {
     }
 
     // Draw score
-    this.ctx.fillStyle = "#fff";
-    this.ctx.font = "24px Arial";
-    this.ctx.fillText(`Score: ${state.score || 0}`, 20, 40);
-    this.ctx.fillText(`Distance: ${Math.floor(state.distance || 0)}`, 20, 70);
+    // this.ctx.fillStyle = "#fff";
+    // this.ctx.font = "24px Arial";
+    // this.ctx.fillText(`Score: ${state.score || 0}`, 20, 40);
+    // this.ctx.fillText(`Distance: ${Math.floor(state.distance || 0)}`, 20, 70);
   }
 
   drawCatchingEffects(state) {
@@ -1289,260 +1305,17 @@ function drawGround(state) {
   ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
 
   // Add realistic ground details
-  drawGroundDetails(state);
-}
-
-function drawGroundDetails(state) {
-  // Draw grass blades, dirt particles, and fallen leaves for realism
-  const groundY = state.ground;
-
-  // Initialize ground details if not already done
-  if (!this.groundDetailsInitialized) {
-    this.initializeGroundDetails();
-  }
-
-  // Update ground detail positions for scrolling effect
-  this.updateGroundDetails(state);
-
-  // Draw grass blades along the top edge with gentle sway
-  ctx.strokeStyle = "#32CD32"; // Lime green for grass
-  ctx.lineWidth = 1;
-  ctx.globalAlpha = 0.8;
-
-  const time = Date.now() * 0.001; // For animation
-  for (let i = 0; i < this.grassBlades.length; i++) {
-    const blade = this.grassBlades[i];
-    const sway = Math.sin(time + blade.phase) * 1.5; // Gentle sway
-
-    ctx.beginPath();
-    ctx.moveTo(blade.x, groundY);
-    ctx.quadraticCurveTo(
-      blade.x + sway, groundY - blade.height * 0.5,
-      blade.x + sway * 0.5, groundY - blade.height
-    );
-    ctx.stroke();
-  }
-
-  // Draw dirt particles and pebbles
-  ctx.fillStyle = "#8B4513"; // Saddle brown for dirt
-  ctx.globalAlpha = 0.6;
-
-  for (let particle of this.dirtParticles) {
-    ctx.beginPath();
-    ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Draw fallen leaves
-  ctx.globalAlpha = 0.7;
-
-  for (let leaf of this.fallenLeaves) {
-    ctx.save();
-    ctx.translate(leaf.x, leaf.y);
-    ctx.rotate(leaf.rotation);
-    ctx.fillStyle = leaf.color;
-
-    // Draw simple leaf shape
-    ctx.beginPath();
-    ctx.ellipse(0, 0, leaf.size, leaf.size * 0.6, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Add leaf stem
-    ctx.strokeStyle = "#654321";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, -leaf.size * 0.3);
-    ctx.lineTo(0, leaf.size * 0.3);
-    ctx.stroke();
-
-    ctx.restore();
-  }
-
-  // Add subtle ground texture with noise
-  ctx.fillStyle = "rgba(0, 0, 0, 0.1)";
-  ctx.globalAlpha = 0.1;
-
-  for (let noise of this.groundNoise) {
-    ctx.beginPath();
-    ctx.arc(noise.x, noise.y, noise.size, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Reset global alpha
-  ctx.globalAlpha = 1.0;
-}
-
-function initializeGroundDetails() {
-  // Generate static ground details that don't change each frame
-  this.grassBlades = [];
-  this.dirtParticles = [];
-  this.fallenLeaves = [];
-  this.mossPatches = [];
-  this.groundNoise = [];
-
-  const groundY = this.ground;
-  this.leafColors = ["#8B4513", "#A0522D", "#CD853F", "#D2691E"];
-
-  // Generate grass blades
-  for (let x = 0; x < canvas.width; x += 3) {
-    this.grassBlades.push({
-      x: x,
-      height: 8 + (x * 0.01) % 12, // Pseudo-random height based on position
-      phase: (x * 0.1) % (Math.PI * 2) // Phase for sway animation
-    });
-  }
-
-  // Generate dirt particles
-  for (let i = 0; i < 50; i++) {
-    const seed = i * 7.3; // Use seed for consistent "randomness"
-    this.dirtParticles.push({
-      x: (seed * 13) % canvas.width,
-      y: groundY + 5 + (seed * 17) % (canvas.height - groundY - 25),
-      size: 1 + (seed * 23) % 3
-    });
-  }
-
-  // Generate fallen leaves
-  for (let i = 0; i < 15; i++) {
-    const seed = i * 11.7;
-    this.fallenLeaves.push({
-      x: (seed * 19) % canvas.width,
-      y: groundY + 10 + (seed * 29) % (canvas.height - groundY - 30),
-      size: 3 + (seed * 31) % 4,
-      rotation: (seed * 37) % (Math.PI * 2),
-      color: this.leafColors[Math.floor((seed * 41) % this.leafColors.length)]
-    });
-  }
-
-  // Generate moss patches
-  for (let i = 0; i < 8; i++) {
-    const seed = i * 43.1;
-    this.mossPatches.push({
-      x: (seed * 47) % canvas.width,
-      y: groundY + 15 + (seed * 53) % (canvas.height - groundY - 35),
-      width: 20 + (seed * 59) % 40,
-      height: 8 + (seed * 61) % 15,
-      rotation: (seed * 67) % Math.PI
-    });
-  }
-
-  // Generate ground noise
-  for (let i = 0; i < 200; i++) {
-    const seed = i * 71.3;
-    this.groundNoise.push({
-      x: (seed * 73) % canvas.width,
-      y: groundY + (seed * 79) % (canvas.height - groundY),
-      size: 0.5 + (seed * 83) % 1.5
-    });
-  }
-
-  this.groundDetailsInitialized = true;
-}
-
-function updateGroundDetails(state) {
-  // Move ground details left to create running effect
-  const scrollSpeed = state.gameSpeed || 2; // Match obstacle speed
-
-  // Update grass blades
-  for (let blade of this.grassBlades) {
-    blade.x -= scrollSpeed;
-    // Wrap around when off screen
-    if (blade.x < -10) {
-      blade.x = canvas.width + Math.random() * 50;
-      blade.height = 8 + (blade.x * 0.01) % 12; // Recalculate height
-      blade.phase = (blade.x * 0.1) % (Math.PI * 2); // Recalculate phase
-    }
-  }
-
-  // Update dirt particles
-  for (let particle of this.dirtParticles) {
-    particle.x -= scrollSpeed;
-    if (particle.x < -10) {
-      particle.x = canvas.width + Math.random() * 100;
-      const seed = particle.x * 17;
-      particle.y = state.ground + 5 + (seed % (canvas.height - state.ground - 25));
-      particle.size = 1 + (seed % 3);
-    }
-  }
-
-  // Update fallen leaves
-  for (let leaf of this.fallenLeaves) {
-    leaf.x -= scrollSpeed;
-    if (leaf.x < -20) {
-      leaf.x = canvas.width + Math.random() * 150;
-      const seed = leaf.x * 29;
-      leaf.y = state.ground + 10 + (seed % (canvas.height - state.ground - 30));
-      leaf.size = 3 + (seed % 4);
-      leaf.rotation = (seed % (Math.PI * 2));
-      leaf.color = this.leafColors[Math.floor(seed % this.leafColors.length)];
-    }
-  }
-
-  // Update moss patches
-  for (let moss of this.mossPatches) {
-    moss.x -= scrollSpeed;
-    if (moss.x < -50) {
-      moss.x = canvas.width + Math.random() * 200;
-      const seed = moss.x * 53;
-      moss.y = state.ground + 15 + (seed % (canvas.height - state.ground - 35));
-      moss.width = 20 + (seed % 40);
-      moss.height = 8 + (seed % 15);
-      moss.rotation = (seed % Math.PI);
-    }
-  }
-
-  // Update ground noise
-  for (let noise of this.groundNoise) {
-    noise.x -= scrollSpeed;
-    if (noise.x < -5) {
-      noise.x = canvas.width + Math.random() * 50;
-      const seed = noise.x * 79;
-      noise.y = state.ground + (seed % (canvas.height - state.ground));
-      noise.size = 0.5 + (seed % 1.5);
-    }
-  }
+  // drawGroundDetails(state); // Removed for minimal ground
 }
 
 function drawObstacles(state) {
-  // Draw gaps (water pits - realistic water with enhanced ripples, light rays, and aquatic life)
-  // Group consecutive gaps to display 1-3 combined pits as one continuous pit
-  const sortedGaps = [...state.gaps].sort((a, b) => a.x - b.x);
-  const gapGroups = [];
-
-  // Group consecutive gaps that are adjacent
-  let currentGroup = [];
-  for (let i = 0; i < sortedGaps.length; i++) {
-    const gap = sortedGaps[i];
-    if (currentGroup.length === 0) {
-      currentGroup.push(gap);
-    } else {
-      const lastGap = currentGroup[currentGroup.length - 1];
-      // Check if this gap is adjacent to the last one in the group
-      if (gap.x <= lastGap.x + lastGap.width + 5) { // Small tolerance for positioning
-        currentGroup.push(gap);
-      } else {
-        // Start a new group
-        gapGroups.push(currentGroup);
-        currentGroup = [gap];
-      }
-    }
-  }
-  if (currentGroup.length > 0) {
-    gapGroups.push(currentGroup);
-  }
-
-  // Draw each group as a continuous pit
-  gapGroups.forEach((group) => {
-    if (group.length === 0) return;
-
-    // Calculate the bounds of the continuous pit
-    const minX = Math.min(...group.map(g => g.x));
-    const maxX = Math.max(...group.map(g => g.x + g.width));
-    const pitWidth = maxX - minX;
-    const pitY = group[0].y; // All gaps in group should have same y
-    const pitHeight = group[0].height; // All gaps in group should have same height
-
-    const time = Date.now() * 0.001; // For water animation
+  // Draw each gap as its own pit (no grouping/combining)
+  state.gaps.forEach((gap) => {
+    const minX = gap.x;
+    const pitWidth = gap.width;
+    const pitY = gap.y;
+    const pitHeight = gap.height;
+    const time = Date.now() * 0.001;
 
     // Water surface with enhanced gradient from light blue at top to deeper blue at bottom
     const waterGradient = ctx.createLinearGradient(
@@ -2044,48 +1817,46 @@ function drawObstacles(state) {
     ctx.fillRect(centerX - trap.width, baseY - 2, trap.width * 2, 6);
   });
 
-  // Draw pendulums
-  state.pendulums.forEach((pendulum) => {
-    const px = pendulum.x; // Fixed: Remove width/2 since width is not set
-    const py = pendulum.y;
-    const angle = pendulum.angle;
+  // ...pendulum drawing removed...
+}
 
-    // Calculate axe position at end of chain
-    const axeX = px + Math.sin(angle) * pendulum.length;
-    const axeY = py + Math.cos(angle) * pendulum.length;
+function drawMovingPlatforms(state) {
+  if (!state.movingPlatforms) return;
 
-    // Draw chain/rope segments
-    ctx.strokeStyle = "#8B4513"; // Brown rope
-    ctx.lineWidth = 3;
+  state.movingPlatforms.forEach((platform) => {
+    const px = platform.x;
+    const py = platform.y;
+    const pWidth = platform.width;
+    const pHeight = platform.height;
+
+    // Draw wooden platform base
+    ctx.fillStyle = "#8B4513"; // Brown wood
+    ctx.fillRect(px, py, pWidth, pHeight);
+
+    // Add wood grain texture
+    ctx.strokeStyle = "#654321";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(px + 5, py + 5 + i * 8);
+      ctx.lineTo(px + pWidth - 5, py + 5 + i * 8);
+      ctx.stroke();
+    }
+
+    // Add moss patches for forest theme
+    ctx.fillStyle = "#228B22";
+    // Top moss
     ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.lineTo(axeX, axeY);
-    ctx.stroke();
-
-    // Draw axe head
-    ctx.save();
-    ctx.translate(axeX, axeY);
-    ctx.rotate(angle + Math.PI / 2); // Rotate to face swing direction
-
-    // Axe handle
-    ctx.fillStyle = "#8B4513";
-    ctx.fillRect(-2, -15, 4, 30);
-
-    // Axe blade
-    ctx.fillStyle = "#C0C0C0"; // Silver blade
+    ctx.arc(px + pWidth * 0.3, py + 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Bottom moss
     ctx.beginPath();
-    ctx.moveTo(-8, -15);
-    ctx.lineTo(0, -25);
-    ctx.lineTo(8, -15);
-    ctx.closePath();
+    ctx.arc(px + pWidth * 0.7, py + pHeight - 2, 2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Axe blade edge
-    ctx.strokeStyle = "#808080";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.restore();
+    // Add subtle shadow underneath
+    ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+    ctx.fillRect(px + 2, py + pHeight, pWidth - 4, 3);
   });
 }
 
@@ -3428,80 +3199,6 @@ function drawRopes(state) {
 }
 
 // Draw moving platforms (forest theme)
-function drawMovingPlatforms(state) {
-  if (!state.movingPlatforms) return;
-
-  state.movingPlatforms.forEach((platform) => {
-    // Platform shadow
-    ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-    ctx.fillRect(
-      platform.x + 2,
-      platform.y + 2,
-      platform.width,
-      platform.height
-    );
-
-    // Highlight strategic platforms with a glow effect
-    if (platform.strategic) {
-      const pulseAlpha = 0.3 + Math.sin(Date.now() * 0.005) * 0.15;
-      ctx.shadowColor = "#4169E1";
-      ctx.shadowBlur = 15;
-
-      // Helper indicator line showing the danger below
-      ctx.strokeStyle = `rgba(65, 105, 225, ${pulseAlpha})`;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 5]);
-      ctx.beginPath();
-      ctx.moveTo(
-        platform.x + platform.width / 2,
-        platform.y + platform.height
-      );
-      ctx.lineTo(platform.x + platform.width / 2, state.ground);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    // Log platform
-    ctx.fillStyle = platform.strategic ? "#A0522D" : "#8B4513"; // Lighter brown for strategic
-    ctx.fillRect(
-      platform.x,
-      platform.y,
-      platform.width,
-      platform.height
-    );
-
-    // Reset shadow
-    ctx.shadowBlur = 0;
-
-    // Log rings
-    ctx.strokeStyle = "#654321";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < platform.width; i += 10) {
-      ctx.beginPath();
-      ctx.arc(
-        platform.x + i + 5,
-        platform.y + platform.height / 2,
-        3,
-        0,
-        Math.PI * 2
-      );
-      ctx.stroke();
-    }
-
-    // Moss on log - with special color for strategic platforms
-    ctx.fillStyle = platform.strategic ? "#00FF00" : "#32CD32"; // Brighter green for strategic
-    ctx.fillRect(platform.x, platform.y, platform.width, 3);
-
-    // Add help icon for strategic platforms
-    if (platform.strategic) {
-      ctx.fillStyle = "#FFFFFF";
-      ctx.font = "bold 12px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText("!", platform.x + platform.width / 2, platform.y - 5);
-    }
-  });
-}
-
 // Handle game state changes
 function handleGameState(state) {
   if (!state) return;
