@@ -18,16 +18,27 @@ class ClientGame {
     this.sessionStats = null;
     this._integrityCheck = { tamperingDetected: false };
 
+    // Canvas properties
+    this.canvas = document.getElementById("gameCanvas");
+    this.ctx = this.canvas.getContext("2d");
+    this.canvas.width = window.innerWidth;
+    this.canvas.height = window.innerHeight;
+    this.isNightMode = false;
+
     // Audio properties
     this.audioContext = null;
     this.audioEnabled = JSON.parse(localStorage.getItem("audioEnabled")) || true;
     this.musicEnabled = JSON.parse(localStorage.getItem("musicEnabled")) || true;
-    this.backgroundMusic = new Audio('/sounds/background.mp3');
+    this.backgroundMusic = new Audio('/song/song.mp3');
     this.backgroundMusic.loop = true;
     this.backgroundMusic.volume = 0.3;
   }
 
   gameOver() {
+    // Prevent duplicate game over calls
+    if (this.gameState === "gameOver") {
+      return;
+    }
     this.gameState = "gameOver";
     if (this.score > this.highScore) {
       this.highScore = this.score;
@@ -332,6 +343,8 @@ class ClientGame {
     document.getElementById('gameOverScreen').style.display = 'none';
     // Start new session
     this.startSession();
+    // Reset game state to allow game over popup to show again
+    this.gameState = null;
     socket.emit('restart');
   }
 
@@ -476,6 +489,120 @@ class ClientGame {
         "bg-gray-500 hover:bg-gray-600 text-white px-3 py-1 rounded text-sm";
     }
   }
+
+  draw(state) {
+    // Clear canvas
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+    if (!state) return;
+
+    // Draw background gradient
+    drawBackground(state);
+
+    // Draw sun or moon
+    if (this.isNightMode) {
+      drawMoon();
+    } else {
+      drawSun();
+    }
+
+    // Draw clouds and trees
+    drawClouds(state);
+    drawBackgroundTrees(state);
+
+    // Draw ground
+    drawGround(state);
+
+    // Draw obstacles
+    drawObstacles(state);
+
+    // Draw power-ups
+    drawPowerUps(state);
+
+    // Draw coins
+    drawCoins(state);
+
+    // Draw birds
+    drawBirds(state);
+
+    // Draw monster
+    drawMonster(state);
+
+    // Draw particles
+    drawParticles(state);
+
+    // Draw player
+    drawPlayer(state);
+
+    // Draw particles
+    drawParticles(state);
+
+    // Draw catching effects if in catching state
+    if (state.gameState === "catching") {
+      this.drawCatchingEffects(state);
+    }
+
+    // Draw score
+    this.ctx.fillStyle = "#fff";
+    this.ctx.font = "24px Arial";
+    this.ctx.fillText(`Score: ${state.score || 0}`, 20, 40);
+    this.ctx.fillText(`Distance: ${Math.floor(state.distance || 0)}`, 20, 70);
+  }
+
+  drawCatchingEffects(state) {
+    // Hit flash effect
+    if (state.hitTimestamps && state.hitTimestamps.length > 0) {
+      const timeSinceLastHit = Date.now() - state.hitTimestamps[state.hitTimestamps.length - 1];
+      if (timeSinceLastHit < 200) { // Flash for 200ms
+        this.ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      }
+    }
+
+    // Catching animation - screen shake and particle effects
+    if (state.gameState === "catching") {
+      // Screen shake
+      const shakeIntensity = Math.sin(Date.now() * 0.05) * 5;
+      this.ctx.save();
+      this.ctx.translate(shakeIntensity, shakeIntensity);
+
+      // Draw particle explosion
+      for (let i = 0; i < 20; i++) {
+        const angle = (i / 20) * Math.PI * 2;
+        const distance = 50 + Math.sin(Date.now() * 0.01 + i) * 20;
+        const x = state.player.x + state.player.width / 2 + Math.cos(angle) * distance;
+        const y = state.player.y + state.player.height / 2 + Math.sin(angle) * distance;
+
+        this.ctx.fillStyle = `hsl(${i * 18}, 100%, 50%)`;
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, 3, 0, Math.PI * 2);
+        this.ctx.fill();
+      }
+
+      this.ctx.restore();
+    }
+  }
+
+  gameLoop() {
+    // Update distance and mode
+    this.updateDistance();
+
+    // Request next frame
+    requestAnimationFrame(() => this.gameLoop());
+  }
+
+  updateDistance() {
+    // This would be called with server state updates
+    // For now, we'll track distance changes to switch day/night mode
+    if (this.lastDistance !== undefined && this.distance !== this.lastDistance) {
+      const distanceChange = this.distance - this.lastDistance;
+      if (distanceChange > 0) {
+        // Switch to night mode every 1000 units
+        this.isNightMode = Math.floor(this.distance / 1000) % 2 === 1;
+      }
+    }
+    this.lastDistance = this.distance;
+  }
 }
 
 // Create client game instance
@@ -486,7 +613,7 @@ let gameState = null;
 // Listen for game state updates from the server
 socket.on("gameState", (state) => {
   gameState = state;
-  renderGame(state);
+  clientGame.draw(state);
   updateUI(state);
   handleGameState(state);
 });
@@ -511,6 +638,8 @@ document.getElementById('startBtn').addEventListener('click', () => {
   document.getElementById('startScreen').style.display = 'none';
   // Start new session
   clientGame.startSession();
+  // Start the game loop
+  clientGame.gameLoop();
   // Emit start to server if needed
   socket.emit('start');
 });
@@ -526,9 +655,11 @@ document.getElementById('resumeBtn').addEventListener('click', () => {
 });
 
 document.getElementById('restartBtn').addEventListener('click', () => {
-  document.getElementById('gameOverScreen').style.display = 'none';
+  document.getElementById('gameOverScreen').classList.add('hidden');
   // Start new session
   clientGame.startSession();
+  // Reset game state to allow game over popup to show again
+  clientGame.gameState = null;
   socket.emit('restart');
 });
 
@@ -543,7 +674,9 @@ document.getElementById('pauseRestartBtn').addEventListener('click', () => {
 window.addEventListener("resize", () => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  if (gameState) renderGame(gameState);
+  clientGame.canvas.width = window.innerWidth;
+  clientGame.canvas.height = window.innerHeight;
+  if (gameState) clientGame.draw(gameState);
 });
 
 // Basic rendering function (expand as needed)
@@ -571,6 +704,12 @@ function renderGame(state) {
   // Draw obstacles
   drawObstacles(state);
 
+  // Draw ropes
+  drawRopes(state);
+
+  // Draw coins
+  drawCoins(state);
+
   // Draw birds
   drawBirds(state);
 
@@ -597,8 +736,8 @@ function updateUI(state) {
   if (!state) return;
   document.getElementById('score').textContent = state.score || 0;
   document.getElementById('distance').textContent = Math.floor(state.distance || 0) + 'm';
-  // Calculate level based on distance
-  const level = Math.floor((state.distance || 0) / 500) + 1;
+  // Calculate level based on score (matching server-side calculation)
+  const level = Math.floor((state.score || 0) / 75) + 1;
   document.getElementById('level').textContent = level;
   // High score (assume from localStorage or something, but for now, same as score)
   document.getElementById('highScore').textContent = state.score || 0;
@@ -2447,6 +2586,20 @@ function drawGhostOuterGlow(mx, my, time, isDeadly) {
   ctx.fill();
 }
 
+function drawParticles(state) {
+  if (!state.particles) return;
+
+  state.particles.forEach(particle => {
+    ctx.fillStyle = particle.color;
+    ctx.globalAlpha = particle.life / 40; // Fade out as life decreases
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.globalAlpha = 1; // Reset alpha
+}
+
 function drawPlayer(state) {
   if (!state.player) return;
 
@@ -2942,12 +3095,323 @@ function drawCrouchingPlayer(px, py, state) {
   ctx.fill();
 }
 
+function drawPowerUps(state) {
+  if (!state.powerUps) return;
+
+  state.powerUps.forEach(powerUp => {
+    const pulsation = 1 + Math.sin(powerUp.frame * 2) * 0.1;
+    const px = powerUp.x + powerUp.width / 2;
+    const py = powerUp.y + powerUp.height / 2;
+
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.scale(pulsation, pulsation);
+
+    switch (powerUp.type) {
+      case "shield":
+        // Shield icon - protective barrier
+        ctx.fillStyle = "#3B82F6";
+        ctx.beginPath();
+        ctx.moveTo(0, -15); // Scaled up from -10
+        ctx.lineTo(-12, -9); // Scaled up from -8, -6
+        ctx.lineTo(-12, 6); // Scaled up from -8, 4
+        ctx.lineTo(0, 15); // Scaled up from 0, 10
+        ctx.lineTo(12, 6); // Scaled up from 8, 4
+        ctx.lineTo(12, -9); // Scaled up from 8, -6
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = "#60A5FA";
+        ctx.lineWidth = 3; // Increased from 2
+        ctx.stroke();
+
+        // Shield cross
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 2; // Increased from 1.5
+        ctx.beginPath();
+        ctx.moveTo(-7, 0); // Scaled up from -5
+        ctx.lineTo(7, 0); // Scaled up from 5
+        ctx.moveTo(0, -7); // Scaled up from -5
+        ctx.lineTo(0, 7); // Scaled up from 5
+        ctx.stroke();
+        break;
+
+      case "magnet":
+        // Magnet - U shape
+        ctx.strokeStyle = "#DC2626";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        // Draw U shape: straight sides with curved bottom
+        ctx.moveTo(-12, -12); // Start at top-left
+        ctx.lineTo(-12, 6); // Left side down
+        ctx.quadraticCurveTo(-12, 12, 0, 12); // Bottom curve left to center
+        ctx.quadraticCurveTo(12, 12, 12, 6); // Bottom curve center to right
+        ctx.lineTo(12, -12); // Right side up
+        ctx.stroke();
+
+        // Magnet poles at the bottom ends of the U
+        ctx.fillStyle = "#DC2626";
+        ctx.beginPath();
+        ctx.arc(-12, 6, 3, 0, Math.PI * 2); // Left pole (north)
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(12, 6, 3, 0, Math.PI * 2); // Right pole (south)
+        ctx.fill();
+
+        // Plus/minus symbols on poles
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "bold 10px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("+", -12, 10); // North pole
+        ctx.fillText("-", 12, 10); // South pole
+        break;
+
+      case "boost":
+        // Rocket boost - speed lines and flame
+        ctx.fillStyle = "#F59E0B";
+        ctx.beginPath();
+        ctx.moveTo(-15, 0); // Scaled up from -10
+        ctx.lineTo(15, -9); // Scaled up from 10, -6
+        ctx.lineTo(15, 9); // Scaled up from 10, 6
+        ctx.closePath();
+        ctx.fill();
+
+        // Flame trail
+        ctx.fillStyle = "#EF4444";
+        ctx.beginPath();
+        ctx.moveTo(-15, 0); // Scaled up from -10
+        ctx.lineTo(-24, -4); // Scaled up from -16, -3
+        ctx.lineTo(-21, 0); // Scaled up from -14
+        ctx.lineTo(-24, 4); // Scaled up from -16, 3
+        ctx.closePath();
+        ctx.fill();
+
+        // Speed lines
+        ctx.strokeStyle = "#FBBF24";
+        ctx.lineWidth = 3; // Increased from 2
+        ctx.beginPath();
+        ctx.moveTo(8, 0); // Scaled up from 5
+        ctx.lineTo(18, 0); // Scaled up from 12
+        ctx.stroke();
+        break;
+
+      case "doublecoins":
+        // Double coins icon - two overlapping coins with 2x
+        ctx.fillStyle = "#FFD700";
+        ctx.beginPath();
+        ctx.arc(-4, -3, 9, 0, Math.PI * 2); // Scaled up from -3, -2, 6
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(4, 3, 9, 0, Math.PI * 2); // Scaled up from 3, 2, 6
+        ctx.fill();
+
+        ctx.strokeStyle = "#B8860B";
+        ctx.lineWidth = 1.5; // Increased from 1
+        ctx.beginPath();
+        ctx.arc(-4, -3, 9, 0, Math.PI * 2); // Scaled up
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(4, 3, 9, 0, Math.PI * 2); // Scaled up
+        ctx.stroke();
+
+        // 2x text
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "bold 12px Arial"; // Increased from 8px
+        ctx.textAlign = "center";
+        ctx.fillText("2x", 0, 2); // Adjusted from 0, 1
+        break;
+    }
+
+    ctx.restore();
+  });
+}
+
+function drawCoins(state) {
+  if (!state.coins) return;
+
+  state.coins.forEach((coin) => {
+    const rotation = coin.frame * 0.3;
+    const cx = coin.x + coin.width / 2;
+    const cy = coin.y + coin.height / 2;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotation);
+
+    // Coin shadow
+    ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+    ctx.beginPath();
+    ctx.arc(1, 1, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Coin body (gold)
+    ctx.fillStyle = "#FFD700";
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Coin edge (darker gold)
+    ctx.strokeStyle = "#B8860B";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Coin shine/highlight
+    ctx.fillStyle = "#FFF8DC";
+    ctx.beginPath();
+    ctx.arc(-2, -2, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Coin inner details (like a dollar sign or just a simple pattern)
+    ctx.fillStyle = "#B8860B";
+    ctx.font = "bold 10px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("$", 0, 3);
+
+    ctx.restore();
+  });
+}
+
+function drawRopes(state) {
+  if (!state.ropes) return;
+
+  state.ropes.forEach((rope) => {
+    const time = Date.now() * 0.001;
+    const swingOffset = Math.sin(rope.swingAngle) * rope.maxSwing * 20;
+    const ropeCenterX = rope.x + rope.width / 2;
+    const ropeTopY = rope.y;
+    const ropeBottomY = rope.y + rope.height;
+
+    ctx.save();
+
+    // Draw wooden posts on both sides
+    const postWidth = 8;
+    const postHeight = rope.height + 20;
+
+    // Left post
+    ctx.fillStyle = "#8B4513"; // Brown wood
+    ctx.fillRect(rope.x - postWidth/2, rope.y - 10, postWidth, postHeight);
+
+    // Right post
+    ctx.fillRect(rope.x + rope.width - postWidth/2, rope.y - 10, postWidth, postHeight);
+
+    // Post details - wood grain
+    ctx.strokeStyle = "#654321";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      // Left post grain
+      ctx.beginPath();
+      ctx.moveTo(rope.x - postWidth/2 + 2 + i*2, rope.y - 5);
+      ctx.lineTo(rope.x - postWidth/2 + 2 + i*2, rope.y + postHeight - 5);
+      ctx.stroke();
+
+      // Right post grain
+      ctx.beginPath();
+      ctx.moveTo(rope.x + rope.width - postWidth/2 + 2 + i*2, rope.y - 5);
+      ctx.lineTo(rope.x + rope.width - postWidth/2 + 2 + i*2, rope.y + postHeight - 5);
+      ctx.stroke();
+    }
+
+    // Draw swinging vine ropes
+    ctx.strokeStyle = "#228B22"; // Forest green
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+
+    // Main rope segments with natural sag and swing
+    const segments = 8;
+    const segmentLength = rope.width / segments;
+
+    ctx.beginPath();
+    ctx.moveTo(rope.x, ropeTopY);
+
+    for (let i = 1; i <= segments; i++) {
+      const x = rope.x + i * segmentLength;
+      const baseY = ropeTopY + (ropeBottomY - ropeTopY) * (i / segments);
+      const swingInfluence = Math.sin((i / segments) * Math.PI) * swingOffset;
+      const sag = Math.sin((i / segments) * Math.PI) * 15; // Natural rope sag
+
+      ctx.lineTo(x + swingInfluence, baseY + sag);
+    }
+
+    ctx.stroke();
+
+    // Add rope texture/details
+    ctx.strokeStyle = "#32CD32"; // Lighter green for highlights
+    ctx.lineWidth = 1;
+
+    // Draw smaller vines/twists
+    for (let i = 0; i < 3; i++) {
+      const offset = (i - 1) * 3;
+      ctx.beginPath();
+      ctx.moveTo(rope.x, ropeTopY + offset);
+
+      for (let j = 1; j <= segments; j++) {
+        const x = rope.x + j * segmentLength;
+        const baseY = ropeTopY + (ropeBottomY - ropeTopY) * (j / segments);
+        const swingInfluence = Math.sin((j / segments) * Math.PI) * swingOffset;
+        const sag = Math.sin((j / segments) * Math.PI) * 15;
+
+        ctx.lineTo(x + swingInfluence + offset * 0.5, baseY + sag + offset);
+      }
+
+      ctx.stroke();
+    }
+
+    // Draw foliage/leaves hanging from the rope
+    const leafCount = 6;
+    for (let i = 0; i < leafCount; i++) {
+      const leafX = rope.x + (rope.width / leafCount) * i + Math.random() * 20 - 10;
+      const leafY = ropeTopY + (ropeBottomY - ropeTopY) * (i / leafCount) + Math.random() * 10;
+      const swingInfluence = Math.sin((i / leafCount) * Math.PI) * swingOffset;
+
+      // Leaf stem
+      ctx.strokeStyle = "#228B22";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(leafX + swingInfluence, leafY);
+      ctx.lineTo(leafX + swingInfluence, leafY + 8 + Math.random() * 4);
+      ctx.stroke();
+
+      // Leaf shape
+      ctx.fillStyle = "#32CD32";
+      ctx.beginPath();
+      ctx.ellipse(leafX + swingInfluence, leafY + 6, 4 + Math.random() * 2, 6 + Math.random() * 3, Math.random() * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Draw "HOLD SPACE" instruction when player is near
+    const playerNear = state.player && Math.abs(state.player.x - ropeCenterX) < 100;
+    if (playerNear && !state.player.onRope) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = 2;
+      ctx.font = "bold 16px Arial";
+      ctx.textAlign = "center";
+
+      const textY = ropeTopY - 30;
+      const pulse = 1 + Math.sin(time * 3) * 0.2;
+
+      ctx.save();
+      ctx.scale(pulse, pulse);
+      ctx.strokeText("HOLD SPACE", ropeCenterX / pulse, textY / pulse);
+      ctx.fillText("HOLD SPACE", ropeCenterX / pulse, textY / pulse);
+      ctx.restore();
+    }
+
+    ctx.restore();
+  });
+}
+
 // Handle game state changes
 function handleGameState(state) {
   if (!state) return;
   if (state.gameState === 'gameOver') {
     // Call client-side game over handling
     clientGame.gameOver();
+  } else {
+    // Synchronize client-side game state with server state for non-gameOver states
+    clientGame.gameState = state.gameState;
   }
 }
 

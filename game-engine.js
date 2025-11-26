@@ -17,6 +17,7 @@ class EndlessRunnerGame {
     this.hitTimestamps = [];
     this.hitFlash = 0;
     this.lastHitTime = 0;
+    this.hitCooldown = false;
     this.consecutiveDangers = 0;
     this.catchingAnimation = 0;
     this.catchingPhase = 0;
@@ -127,21 +128,13 @@ class EndlessRunnerGame {
         this.keys[input.code] = true;
 
         // Handle jump
-        if (input.code === 'Space' && !this.player.jumping) {
-          this.player.velocityY = -12;
-          this.player.jumping = true;
-          this.player.doubleJumpUsed = false;
-        } else if (input.code === 'Space' && !this.player.doubleJumpUsed && this.doubleJumpBoost) {
-          this.player.velocityY = -9;
-          this.player.doubleJumpUsed = true;
+        if (input.code === 'Space') {
+          this.jump();
         }
 
         // Handle slide
-        if ((input.code === 'ArrowDown' || input.code === 'KeyS') && !this.player.sliding && !this.player.jumping) {
-          this.player.sliding = true;
-          this.player.slideTimer = 20;
-          this.player.height = 30;
-          this.player.y = this.ground - 30;
+        if ((input.code === 'ArrowDown' || input.code === 'KeyS')) {
+          this.slide();
         }
         break;
 
@@ -149,12 +142,8 @@ class EndlessRunnerGame {
         this.keys[input.code] = false;
 
         // Handle stop slide
-        if ((input.code === 'ArrowDown' || input.code === 'KeyS') && this.player.sliding) {
-          this.player.sliding = false;
-          this.player.height = 60;
-          if (!this.player.jumping) {
-            this.player.y = this.ground - 60;
-          }
+        if ((input.code === 'ArrowDown' || input.code === 'KeyS')) {
+          this.stopSlide();
         }
         break;
     }
@@ -359,41 +348,92 @@ class EndlessRunnerGame {
     };
   }
 
+  jump() {
+    if (this.gameState === "playing") {
+      // First jump
+      if (!this.player.jumping) {
+        this.player.velocityY = -12; // Reduced from -18 to -12
+        this.player.jumping = true;
+        this.player.doubleJumpUsed = false;
+        this.playJumpSound();
+      }
+      // Double jump
+      else if (!this.player.doubleJumpUsed) {
+        this.player.velocityY = -9; // Reduced from -15 to -9
+        this.player.doubleJumpUsed = true;
+        this.playJumpSound();
+      }
+    }
+  }
+
+  slide() {
+    if (
+      this.gameState === "playing" &&
+      !this.player.sliding &&
+      !this.player.jumping
+    ) {
+      this.player.sliding = true;
+      this.player.slideTimer = 20; // Reduced from 30 to 20 frames (shorter slide)
+      this.player.height = 30; // Reduce height while sliding
+      this.player.y = this.ground - 30; // Adjust position
+      this.playSlideSound();
+    }
+  }
+
+  stopSlide() {
+    if (this.player.sliding) {
+      this.player.sliding = false;
+      this.player.height = 60; // Restore normal height
+      // Only adjust y position if player is on the ground
+      if (!this.player.jumping) {
+        this.player.y = this.ground - 60; // Restore normal position
+      }
+    }
+  }
+
   updatePlayer() {
     // Handle rope crossing
     if (this.player.onRope && this.player.ropeCrossing) {
+      // Check if space is still being held
       if (this.keys["Space"]) {
-        this.player.ropeSwing += 0.05;
-        this.player.y = this.player.ropeCrossing.y + Math.sin(this.player.ropeSwing) * 10;
-        if (this.player.x > this.player.ropeCrossing.x + this.player.ropeCrossing.width) {
+        // Player is holding on to rope - move forward along rope
+        this.player.ropeSwing += 0.05; // Swing animation
+        // Rope pulls player forward slightly
+        // Player stays at rope height with slight swinging motion
+        this.player.y =
+          this.player.ropeCrossing.y + Math.sin(this.player.ropeSwing) * 10;
+
+        // Check if player has crossed the rope
+        if (
+          this.player.x >
+          this.player.ropeCrossing.x + this.player.ropeCrossing.width
+        ) {
+          // Successfully crossed!
           this.player.onRope = false;
           this.player.ropeCrossing = null;
-          this.player.jumping = true;
+          this.player.jumping = true; // Start falling after rope
         }
       } else {
+        // Player let go of space - fall!
         this.player.onRope = false;
         this.player.ropeCrossing = null;
         this.player.jumping = true;
-        this.player.velocityY = 2;
+        this.player.velocityY = 2; // Start falling
       }
     }
 
-    // Handle sliding
+    // Handle sliding timer
     if (this.player.sliding) {
       this.player.slideTimer--;
       if (this.player.slideTimer <= 0) {
-        this.player.sliding = false;
-        this.player.height = 60;
-        if (!this.player.jumping) {
-          this.player.y = this.ground - 60;
-        }
+        this.stopSlide();
       }
     }
 
-    // Apply gravity and movement
+    // Apply gravity only when not sliding or when jumping
     if (!this.player.sliding || this.player.jumping) {
       if (this.player.velocityY > 0) {
-        this.player.velocityY += this.gravity * 1.5;
+        this.player.velocityY += this.gravity * 1.5; // Increased from 1.2 to 1.5 for faster falling
       } else {
         this.player.velocityY += this.gravity;
       }
@@ -405,11 +445,11 @@ class EndlessRunnerGame {
       this.player.y = this.ground - this.player.height;
       this.player.velocityY = 0;
       this.player.jumping = false;
-      this.player.doubleJumpUsed = false;
+      this.player.doubleJumpUsed = false; // Reset double jump when landing
     }
 
-    // Update animation frame
-    this.player.runFrame += 0.18;
+    // Running animation - slower for more natural movement
+    this.player.runFrame += 0.18; // Slower animation frame increment
     if (this.player.runFrame >= 4) this.player.runFrame = 0;
   }
 
@@ -500,6 +540,28 @@ class EndlessRunnerGame {
     // Update coins
     this.coins = this.coins.filter((coin) => {
       coin.x -= this.gameSpeed;
+      
+      // Magnet attraction logic
+      if (this.magnetCoins && this.magnetTimer > 0) {
+        const coinCenterX = coin.x + coin.width / 2;
+        const coinCenterY = coin.y + coin.height / 2;
+        const playerCenterX = this.player.x + this.player.width / 2;
+        const playerCenterY = this.player.y + this.player.height / 2;
+        
+        const distance = Math.sqrt(
+          Math.pow(coinCenterX - playerCenterX, 2) + 
+          Math.pow(coinCenterY - playerCenterY, 2)
+        );
+        
+        // Attract coins within 200 pixels
+        if (distance < 200 && distance > 5) {
+          const attractSpeed = Math.min(8, 200 / distance); // Faster when closer
+          const angle = Math.atan2(playerCenterY - coinCenterY, playerCenterX - coinCenterX);
+          coin.x += Math.cos(angle) * attractSpeed;
+          coin.y += Math.sin(angle) * attractSpeed;
+        }
+      }
+      
       coin.frame += 0.3;
       if (coin.frame >= 8) coin.frame = 0;
       return coin.x + coin.width > 0 && !coin.collected;
@@ -645,8 +707,13 @@ class EndlessRunnerGame {
   }
 
   handleObstacleHit() {
-    // Record the hit
+    // Prevent multiple hits within a short cooldown period
     let currentTime = Date.now();
+    if (this.lastHitTime > 0 && currentTime - this.lastHitTime < 1000) {
+      return; // Ignore hit if less than 1 second since last hit
+    }
+
+    // Record the hit
     this.hitTimestamps.push(currentTime);
     this.lastHitTime = currentTime; // Track the time of the last hit
     this.sessionStats.obstaclesHit++; // Track obstacle hits in session
@@ -660,9 +727,9 @@ class EndlessRunnerGame {
     this.gameSpeed = this.baseGameSpeed * 0.6; // Reduced slowdown from 0.5 to 0.6 (less slowdown)
     this.slowdownTimer = 120; // Reduced from 180 to 120 frames (2 seconds instead of 3)
 
-    // After 3 hits, start catching animation
+    // After 3 hits, game over immediately
     if (this.hitTimestamps.length >= 3) {
-      this.startCatchingAnimation();
+      this.gameOver();
       return;
     }
 
@@ -1695,10 +1762,10 @@ class EndlessRunnerGame {
 
   isColliding(rect1, rect2) {
     return (
-      rect1.x < rect2.x + rect2.width - 5 &&
-      rect1.x + rect1.width - 5 > rect2.x &&
-      rect1.y < rect2.y + rect2.height - 5 &&
-      rect1.y + rect1.height - 5 > rect2.y
+      rect1.x < rect2.x + rect2.width - 2 &&
+      rect1.x + rect1.width - 2 > rect2.x &&
+      rect1.y < rect2.y + rect2.height - 2 &&
+      rect1.y + rect1.height - 2 > rect2.y
     );
   }
 
@@ -1792,6 +1859,7 @@ class EndlessRunnerGame {
       monster: this.monster,
       clouds: this.clouds,
       backgroundTrees: this.backgroundTrees,
+      particles: this.particles,
       isNightMode: this.isNightMode,
       pendulums: this.pendulums,
       ropes: this.ropes,

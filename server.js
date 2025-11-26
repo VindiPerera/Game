@@ -2692,7 +2692,7 @@ io.on('connection', (socket) => {
   socket.on('restart', () => {
     const game = games.get(socket.id);
     if (game) {
-      game.restart();
+      game.restartGame();
     }
   });
 
