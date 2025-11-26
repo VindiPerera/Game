@@ -611,9 +611,9 @@ class ClientGame {
     this.ctx.save();
 
     // Draw background gradient
-    drawBackground(state);
+    // Use client isNightMode for both background and sun/moon
+    drawBackground({ isNightMode: this.isNightMode });
 
-    // Draw sun or moon
     if (this.isNightMode) {
       drawMoon();
     } else {
@@ -739,8 +739,8 @@ class ClientGame {
     ) {
       const distanceChange = this.distance - this.lastDistance;
       if (distanceChange > 0) {
-        // Switch to night mode every 1000 units
-        this.isNightMode = Math.floor(this.distance / 1000) % 2 === 1;
+        // Switch to night mode every 10,000 units
+        this.isNightMode = Math.floor(this.distance / 10000) % 2 === 1;
       }
     }
     this.lastDistance = this.distance;
