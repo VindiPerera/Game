@@ -368,6 +368,14 @@ class EndlessRunnerGame {
     this.updateGameSpeed();
     this.updatePowerUps();
 
+    // Update hit flash timer so it only triggers briefly
+    if (this.hitFlash > 0) {
+      this.hitFlash--;
+    }
+
+    // Update hit timestamps for anti-cheat
+    this.updateHitTimestamps();
+
     // Update hit timestamps for anti-cheat
     this.updateHitTimestamps();
 
@@ -796,30 +804,6 @@ class EndlessRunnerGame {
       }
     }
 
-    // Check pendulums
-    for (let pendulum of this.pendulums) {
-      const axeRect = {
-        x: pendulum.x + pendulum.length * Math.sin(pendulum.angle),
-        y: pendulum.y - pendulum.length * Math.cos(pendulum.angle),
-        width: pendulum.axeWidth,
-        height: pendulum.axeHeight
-      };
-      if (this.isColliding(this.player, axeRect)) {
-        if (this.invulnerable && this.shieldHits > 0) {
-          // Shield active - consume it on hit
-          this.shieldHits--;
-          if (this.shieldHits <= 0) {
-            this.invulnerable = false;
-            this.invulnerableTimer = 0;
-          }
-          // Show shield break effect
-          this.showShieldBreakEffect();
-        } else if (!this.invulnerable) {
-          this.handleObstacleHit();
-        }
-        break;
-      }
-    }
 
     // Check rope collisions
     for (let rope of this.ropes) {
@@ -1241,15 +1225,16 @@ class EndlessRunnerGame {
           });
           this.markDangerousArea(baseX + 20, 40, "bird");
           this.consecutiveDangers = 0;
-        } else if (obstacleType < 0.75) {
-          // 15% - Gaps
+        } else if (obstacleType < 0.8) {
+          // 20% - Wide gaps (water pits)
+          const gapWidth = 350 + Math.random() * 350; // 350–700px wide
           this.gaps.push({
             x: baseX,
             y: this.ground,
-            width: 540,
+            width: gapWidth,
             height: 60,
           });
-          this.markDangerousArea(baseX + 270, 540, "gap");
+          this.markDangerousArea(baseX + gapWidth / 2, gapWidth, "gap");
         } else if (obstacleType < 0.85) {
           // 10% - Rope crossing
           this.ropes.push({
@@ -1329,15 +1314,16 @@ class EndlessRunnerGame {
           });
           this.markDangerousArea(baseX + 20, 40, "bird");
           this.consecutiveDangers = 0;
-        } else if (obstacleType < 0.8) {
-          // 12% - Gaps
+        } else if (obstacleType < 0.82) {
+          // 14% - Wider gaps at higher difficulty
+          const gapWidth = 220 + Math.random() * 260; // 220–480px wide
           this.gaps.push({
             x: baseX,
             y: this.ground,
-            width: 140,
+            width: gapWidth,
             height: 60,
           });
-          this.markDangerousArea(baseX + 70, 140, "gap");
+          this.markDangerousArea(baseX + gapWidth / 2, gapWidth, "gap");
         } else if (obstacleType < 0.9) {
           // 10% - Rope crossing
           this.ropes.push({

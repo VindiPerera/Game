@@ -8,19 +8,23 @@ canvas.height = window.innerHeight;
 
 // Client-side game state and methods
 class ClientGame {
-    resetGameState() {
-      // Reset all relevant game state variables
-      this.score = 0;
-      this.distance = 0;
-      this.gameState = null;
-      this.isNightMode = false;
-      this.sessionId = null;
-      this.sessionStartTime = null;
-      this.sessionStats = null;
-      this._integrityCheck = { tamperingDetected: false };
-      // Optionally reset other gameplay variables if needed
-      // If you have more state (powerups, etc.), reset them here
-    }
+  resetGameState() {
+    // Reset all relevant game state variables
+    this.score = 0;
+    this.distance = 0;
+    this.gameState = null;
+    this.isNightMode = false;
+    this.sessionId = null;
+    this.sessionStartTime = null;
+    this.sessionStats = null;
+    this._integrityCheck = { tamperingDetected: false };
+    this.lastHitFlash = 0;
+    this.hitEffectTimer = 0;
+    this.hitShakeX = 0;
+    this.hitShakeY = 0;
+    // Optionally reset other gameplay variables if needed
+    // If you have more state (powerups, etc.), reset them here
+  }
   constructor() {
     this.gameState = null;
     this.score = 0;
@@ -30,6 +34,10 @@ class ClientGame {
     this.sessionStartTime = null;
     this.sessionStats = null;
     this._integrityCheck = { tamperingDetected: false };
+    this.lastHitFlash = 0;
+    this.hitEffectTimer = 0; // how many frames the hit effect stays visible
+    this.hitShakeX = 0;
+    this.hitShakeY = 0;
 
     // Canvas properties
     this.canvas = document.getElementById("gameCanvas");
@@ -40,9 +48,11 @@ class ClientGame {
 
     // Audio properties
     this.audioContext = null;
-    this.audioEnabled = JSON.parse(localStorage.getItem("audioEnabled")) || true;
-    this.musicEnabled = JSON.parse(localStorage.getItem("musicEnabled")) || true;
-    this.backgroundMusic = new Audio('/song/song.mp3');
+    this.audioEnabled =
+      JSON.parse(localStorage.getItem("audioEnabled")) || true;
+    this.musicEnabled =
+      JSON.parse(localStorage.getItem("musicEnabled")) || true;
+    this.backgroundMusic = new Audio("/song/song.mp3");
     this.backgroundMusic.loop = true;
     this.backgroundMusic.volume = 0.3;
   }
@@ -71,31 +81,33 @@ class ClientGame {
     this.saveScore();
 
     // End session with result
-    this.endSession('died');
+    this.endSession("died");
   }
 
   showGameOverScreen() {
     document.getElementById("finalScore").textContent = this.score;
     document.getElementById("finalDistance").textContent = this.distance;
     document.getElementById("finalPersonalBest").textContent = this.highScore; // User's personal best
-    
+
     // Fetch global high score from server
-    this.fetchGlobalHighScore().then(globalHighScore => {
-      document.getElementById("finalHighScore").textContent = globalHighScore;
-    }).catch(error => {
-      console.error("Error fetching global high score:", error);
-      // Fallback to user's personal best if fetch fails
-      document.getElementById("finalHighScore").textContent = this.highScore;
-    });
-    
+    this.fetchGlobalHighScore()
+      .then((globalHighScore) => {
+        document.getElementById("finalHighScore").textContent = globalHighScore;
+      })
+      .catch((error) => {
+        console.error("Error fetching global high score:", error);
+        // Fallback to user's personal best if fetch fails
+        document.getElementById("finalHighScore").textContent = this.highScore;
+      });
+
     document.getElementById("gameOverScreen").classList.remove("hidden");
   }
 
   async fetchGlobalHighScore() {
     try {
-      const response = await fetch('/api/scores');
+      const response = await fetch("/api/scores");
       const data = await response.json();
-      
+
       if (data.scores && data.scores.length > 0) {
         // Return the highest score from all players
         return data.scores[0].score;
@@ -113,7 +125,9 @@ class ClientGame {
   saveScore() {
     // Skip score saving for guest users (they use sessions instead)
     if (window.gameUser && window.gameUser.isGuest) {
-      console.log("Guest user - skipping score save, using session save instead");
+      console.log(
+        "Guest user - skipping score save, using session save instead"
+      );
       return;
     }
 
@@ -122,46 +136,60 @@ class ClientGame {
 
     // Additional client-side integrity checks
     const currentTime = Date.now();
-    const gameDuration = this.sessionStartTime ? (currentTime - this.sessionStartTime) / 1000 : 0;
+    const gameDuration = this.sessionStartTime
+      ? (currentTime - this.sessionStartTime) / 1000
+      : 0;
 
     // Validate game duration is reasonable (not too short for high scores)
     if (this.score > 100 && gameDuration < 30) {
-      console.warn("Score validation failed: Game too short for score", this.score, "duration:", gameDuration);
+      console.warn(
+        "Score validation failed: Game too short for score",
+        this.score,
+        "duration:",
+        gameDuration
+      );
       return; // Don't save suspicious scores
     }
 
     // Validate score progression (shouldn't increase too rapidly)
     const maxScoreIncrease = gameDuration * 15; // Max 15 points per second
     if (this.score > maxScoreIncrease) {
-      console.warn("Score validation failed: Score increase too rapid", this.score, "max allowed:", maxScoreIncrease);
+      console.warn(
+        "Score validation failed: Score increase too rapid",
+        this.score,
+        "max allowed:",
+        maxScoreIncrease
+      );
       this.score = Math.min(this.score, maxScoreIncrease);
     }
 
     // Send score data to server
-    fetch('/api/scores', {
-      method: 'POST',
+    fetch("/api/scores", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      credentials: 'same-origin', // Include cookies for authentication
+      credentials: "same-origin", // Include cookies for authentication
       body: JSON.stringify({
         score: this.score,
         level: level,
         distance: Math.floor(this.distance),
-        validationToken: btoa(this.score + ':' + gameDuration + ':' + this.sessionId) // Simple integrity token
+        validationToken: btoa(
+          this.score + ":" + gameDuration + ":" + this.sessionId
+        ), // Simple integrity token
+      }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.message === "Score saved successfully!") {
+          console.log("Score saved successfully!");
+        } else {
+          console.error("Failed to save score:", data.message);
+        }
       })
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.message === "Score saved successfully!") {
-        console.log("Score saved successfully!");
-      } else {
-        console.error("Failed to save score:", data.message);
-      }
-    })
-    .catch(error => {
-      console.error("Error saving score:", error);
-    });
+      .catch((error) => {
+        console.error("Error saving score:", error);
+      });
   }
 
   // Session tracking methods
@@ -174,7 +202,7 @@ class ClientGame {
       obstaclesHit: 0,
       powerupsCollected: 0,
       distanceTraveled: 0,
-      gameResult: null
+      gameResult: null,
     };
     console.log("Game session started:", this.sessionId);
   }
@@ -194,22 +222,45 @@ class ClientGame {
     // Enhanced client-side validation before sending
     const maxReasonableScore = Math.max(duration * 10, 1000);
     if (this.score > maxReasonableScore) {
-      console.warn("Score validation failed on client:", this.score, "max allowed:", maxReasonableScore);
+      console.warn(
+        "Score validation failed on client:",
+        this.score,
+        "max allowed:",
+        maxReasonableScore
+      );
       // Reset score to reasonable value
       this.score = Math.min(this.score, maxReasonableScore);
     }
 
     // Additional integrity checks
-    const coinsPerSecond = duration > 0 ? this.sessionStats.coinsCollected / duration : 0;
-    if (coinsPerSecond > 5) { // Max 5 coins per second
-      console.warn("Coin collection rate too high:", coinsPerSecond, "coins/sec");
-      this.sessionStats.coinsCollected = Math.min(this.sessionStats.coinsCollected, duration * 5);
+    const coinsPerSecond =
+      duration > 0 ? this.sessionStats.coinsCollected / duration : 0;
+    if (coinsPerSecond > 5) {
+      // Max 5 coins per second
+      console.warn(
+        "Coin collection rate too high:",
+        coinsPerSecond,
+        "coins/sec"
+      );
+      this.sessionStats.coinsCollected = Math.min(
+        this.sessionStats.coinsCollected,
+        duration * 5
+      );
     }
 
-    const obstaclesPerSecond = duration > 0 ? this.sessionStats.obstaclesHit / duration : 0;
-    if (obstaclesPerSecond > 2) { // Max 2 obstacles per second
-      console.warn("Obstacle hit rate too high:", obstaclesPerSecond, "hits/sec");
-      this.sessionStats.obstaclesHit = Math.min(this.sessionStats.obstaclesHit, duration * 2);
+    const obstaclesPerSecond =
+      duration > 0 ? this.sessionStats.obstaclesHit / duration : 0;
+    if (obstaclesPerSecond > 2) {
+      // Max 2 obstacles per second
+      console.warn(
+        "Obstacle hit rate too high:",
+        obstaclesPerSecond,
+        "hits/sec"
+      );
+      this.sessionStats.obstaclesHit = Math.min(
+        this.sessionStats.obstaclesHit,
+        duration * 2
+      );
     }
 
     // Prepare session data
@@ -222,26 +273,29 @@ class ClientGame {
       powerupsCollected: this.sessionStats.powerupsCollected,
       distanceTraveled: this.sessionStats.distanceTraveled,
       gameResult: this.sessionStats.gameResult,
-      integrityHash: btoa(JSON.stringify({
-        score: this.score,
-        duration: duration,
-        coins: this.sessionStats.coinsCollected,
-        obstacles: this.sessionStats.obstaclesHit
-      })),
-      tamperingDetected: this._integrityCheck.tamperingDetected
+      integrityHash: btoa(
+        JSON.stringify({
+          score: this.score,
+          duration: duration,
+          coins: this.sessionStats.coinsCollected,
+          obstacles: this.sessionStats.obstaclesHit,
+        })
+      ),
+      tamperingDetected: this._integrityCheck.tamperingDetected,
     };
 
     // Add guest user information if playing as guest
     if (window.gameUser && window.gameUser.isGuest) {
       // Use the persistent guest ID from localStorage or the one passed from server
-      let guestId = window.gameUser.guestId || localStorage.getItem('guestId');
-      
+      let guestId = window.gameUser.guestId || localStorage.getItem("guestId");
+
       // If no guest ID exists, create one and store it
       if (!guestId) {
-        guestId = 'Guest_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('guestId', guestId);
+        guestId =
+          "Guest_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem("guestId", guestId);
       }
-      
+
       sessionData.guestId = guestId;
       console.log("=== GUEST SESSION DEBUG ===");
       console.log("gameUser:", window.gameUser);
@@ -251,25 +305,25 @@ class ClientGame {
     }
 
     // Send session data to server
-    fetch('/api/sessions', {
-      method: 'POST',
+    fetch("/api/sessions", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-      credentials: 'same-origin',
-      body: JSON.stringify(sessionData)
+      credentials: "same-origin",
+      body: JSON.stringify(sessionData),
     })
-    .then(response => response.json())
-    .then(data => {
-      if (data.message === "Session saved successfully!") {
-        console.log("Session saved successfully!");
-      } else {
-        console.error("Failed to save session:", data.message);
-      }
-    })
-    .catch(error => {
-      console.error("Error saving session:", error);
-    });
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.message === "Session saved successfully!") {
+          console.log("Session saved successfully!");
+        } else {
+          console.error("Failed to save session:", data.message);
+        }
+      })
+      .catch((error) => {
+        console.error("Error saving session:", error);
+      });
 
     console.log("Game session ended:", this.sessionId, "Result:", result);
     this.sessionId = null;
@@ -317,29 +371,29 @@ class ClientGame {
   // Client-side game control methods
   startGame() {
     // Hide start screen
-    document.getElementById('startScreen').style.display = 'none';
+    document.getElementById("startScreen").style.display = "none";
     // Hide game over screen (both display and hidden class)
-    const gameOverScreen = document.getElementById('gameOverScreen');
+    const gameOverScreen = document.getElementById("gameOverScreen");
     if (gameOverScreen) {
-      gameOverScreen.style.display = 'none';
-      gameOverScreen.classList.add('hidden');
+      gameOverScreen.style.display = "none";
+      gameOverScreen.classList.add("hidden");
     }
     // Hide pause screen if visible
-    const pauseScreen = document.getElementById('pauseScreen');
+    const pauseScreen = document.getElementById("pauseScreen");
     if (pauseScreen) {
-      pauseScreen.style.display = 'none';
+      pauseScreen.style.display = "none";
     }
     // Hide back link
-    const backLink = document.getElementById('backLink');
+    const backLink = document.getElementById("backLink");
     if (backLink) {
-      backLink.style.display = 'none';
+      backLink.style.display = "none";
     }
     // Reset all game state variables
     this.resetGameState();
     // Start new session
     this.startSession();
     // Emit start to server if needed
-    socket.emit('start');
+    socket.emit("start");
   }
 
   togglePause() {
@@ -351,33 +405,33 @@ class ClientGame {
   }
 
   pauseGame() {
-    document.getElementById('pauseScreen').style.display = 'flex';
+    document.getElementById("pauseScreen").style.display = "flex";
     this.isPaused = true;
-    socket.emit('pause');
+    socket.emit("pause");
   }
 
   resumeGame() {
-    document.getElementById('pauseScreen').style.display = 'none';
+    document.getElementById("pauseScreen").style.display = "none";
     this.isPaused = false;
-    socket.emit('resume');
+    socket.emit("resume");
   }
 
   updatePauseButton() {
-    const pauseBtn = document.getElementById('pauseBtn');
+    const pauseBtn = document.getElementById("pauseBtn");
     if (this.isPaused) {
-      pauseBtn.textContent = 'Resume';
+      pauseBtn.textContent = "Resume";
     } else {
-      pauseBtn.textContent = 'Pause';
+      pauseBtn.textContent = "Pause";
     }
   }
 
   restartGame() {
-    document.getElementById('gameOverScreen').style.display = 'none';
+    document.getElementById("gameOverScreen").style.display = "none";
     // Reset all game state variables
     this.resetGameState();
     // Start new session
     this.startSession();
-    socket.emit('restart');
+    socket.emit("restart");
   }
 
   // Audio methods
@@ -528,6 +582,23 @@ class ClientGame {
 
     if (!state) return;
 
+    // Detect if a new hit just started (hitFlash transitioned from 0 to > 0)
+    const hitJustStarted = state.hitFlash > 0 && this.lastHitFlash <= 0;
+    this.lastHitFlash = state.hitFlash || 0;
+
+    // If a new hit just started, start a short effect timer and pick a shake offset
+    if (hitJustStarted) {
+      this.hitEffectTimer = 10; // show effect for ~10 frames
+      // No shake
+      this.hitShakeX = 0;
+      this.hitShakeY = 0;
+    }
+
+    const hitEffectActive = this.hitEffectTimer > 0;
+
+    // Save context so we can apply hit effects like screen shake
+    this.ctx.save();
+
     // Draw background gradient
     drawBackground(state);
 
@@ -577,7 +648,25 @@ class ClientGame {
       this.drawCatchingEffects(state);
     }
 
-    // Draw score
+    // Restore context after any screen shake transforms
+    this.ctx.restore();
+
+    // Short red flash overlay while hit effect is active (fades out)
+    if (hitEffectActive) {
+      const maxDuration = 10;
+      const intensity = this.hitEffectTimer / maxDuration; // 1 -> 0
+      this.ctx.save();
+      this.ctx.fillStyle = `rgba(255, 0, 0, ${0.3 * intensity})`;
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.ctx.restore();
+    }
+
+    // Decrease hit effect timer at the very end of the frame
+    if (this.hitEffectTimer > 0) {
+      this.hitEffectTimer--;
+    }
+
+    // Draw score (currently handled by DOM/UI, but kept here as reference)
     // this.ctx.fillStyle = "#fff";
     // this.ctx.font = "24px Arial";
     // this.ctx.fillText(`Score: ${state.score || 0}`, 20, 40);
@@ -587,8 +676,10 @@ class ClientGame {
   drawCatchingEffects(state) {
     // Hit flash effect
     if (state.hitTimestamps && state.hitTimestamps.length > 0) {
-      const timeSinceLastHit = Date.now() - state.hitTimestamps[state.hitTimestamps.length - 1];
-      if (timeSinceLastHit < 200) { // Flash for 200ms
+      const timeSinceLastHit =
+        Date.now() - state.hitTimestamps[state.hitTimestamps.length - 1];
+      if (timeSinceLastHit < 200) {
+        // Flash for 200ms
         this.ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
       }
@@ -605,8 +696,10 @@ class ClientGame {
       for (let i = 0; i < 20; i++) {
         const angle = (i / 20) * Math.PI * 2;
         const distance = 50 + Math.sin(Date.now() * 0.01 + i) * 20;
-        const x = state.player.x + state.player.width / 2 + Math.cos(angle) * distance;
-        const y = state.player.y + state.player.height / 2 + Math.sin(angle) * distance;
+        const x =
+          state.player.x + state.player.width / 2 + Math.cos(angle) * distance;
+        const y =
+          state.player.y + state.player.height / 2 + Math.sin(angle) * distance;
 
         this.ctx.fillStyle = `hsl(${i * 18}, 100%, 50%)`;
         this.ctx.beginPath();
@@ -629,7 +722,10 @@ class ClientGame {
   updateDistance() {
     // This would be called with server state updates
     // For now, we'll track distance changes to switch day/night mode
-    if (this.lastDistance !== undefined && this.distance !== this.lastDistance) {
+    if (
+      this.lastDistance !== undefined &&
+      this.distance !== this.lastDistance
+    ) {
       const distanceChange = this.distance - this.lastDistance;
       if (distanceChange > 0) {
         // Switch to night mode every 1000 units
@@ -669,40 +765,40 @@ window.addEventListener("keyup", (e) => {
 });
 
 // UI event listeners
-document.getElementById('startBtn').addEventListener('click', () => {
-  document.getElementById('startScreen').style.display = 'none';
+document.getElementById("startBtn").addEventListener("click", () => {
+  document.getElementById("startScreen").style.display = "none";
   // Start new session
   clientGame.startSession();
   // Start the game loop
   clientGame.gameLoop();
   // Emit start to server if needed
-  socket.emit('start');
+  socket.emit("start");
 });
 
-document.getElementById('pauseBtn').addEventListener('click', () => {
-  document.getElementById('pauseScreen').style.display = 'flex';
-  socket.emit('pause');
+document.getElementById("pauseBtn").addEventListener("click", () => {
+  document.getElementById("pauseScreen").style.display = "flex";
+  socket.emit("pause");
 });
 
-document.getElementById('resumeBtn').addEventListener('click', () => {
-  document.getElementById('pauseScreen').style.display = 'none';
-  socket.emit('resume');
+document.getElementById("resumeBtn").addEventListener("click", () => {
+  document.getElementById("pauseScreen").style.display = "none";
+  socket.emit("resume");
 });
 
-document.getElementById('restartBtn').addEventListener('click', () => {
-  document.getElementById('gameOverScreen').classList.add('hidden');
+document.getElementById("restartBtn").addEventListener("click", () => {
+  document.getElementById("gameOverScreen").classList.add("hidden");
   // Start new session
   clientGame.startSession();
   // Reset game state to allow game over popup to show again
   clientGame.gameState = null;
-  socket.emit('restart');
+  socket.emit("restart");
 });
 
-document.getElementById('pauseRestartBtn').addEventListener('click', () => {
-  document.getElementById('pauseScreen').style.display = 'none';
+document.getElementById("pauseRestartBtn").addEventListener("click", () => {
+  document.getElementById("pauseScreen").style.display = "none";
   // Start new session
   clientGame.startSession();
-  socket.emit('restart');
+  socket.emit("restart");
 });
 
 // Handle window resize
@@ -774,25 +870,39 @@ function renderGame(state) {
 // Update UI elements
 function updateUI(state) {
   if (!state) return;
-  document.getElementById('score').textContent = state.score || 0;
-  document.getElementById('distance').textContent = Math.floor(state.distance || 0) + 'm';
+  document.getElementById("score").textContent = state.score || 0;
+  document.getElementById("distance").textContent =
+    Math.floor(state.distance || 0) + "m";
   // Calculate level based on score (matching server-side calculation)
   const level = Math.floor((state.score || 0) / 75) + 1;
-  document.getElementById('level').textContent = level;
+  document.getElementById("level").textContent = level;
   // High score (assume from localStorage or something, but for now, same as score)
-  document.getElementById('highScore').textContent = state.score || 0;
+  document.getElementById("highScore").textContent = state.score || 0;
   // Update power-up indicators
-  document.getElementById('slowdownIndicator').style.display = (state.slowdownTimer > 0) ? 'block' : 'none';
-  document.getElementById('doubleJumpIndicator').style.display = (state.player && state.player.doubleJumpUsed) ? 'block' : 'none';
-  document.getElementById('slidingIndicator').style.display = (state.player && state.player.sliding) ? 'block' : 'none';
-  document.getElementById('shieldIndicator').style.display = state.invulnerable ? 'block' : 'none';
-  document.getElementById('magnetIndicator').style.display = (state.magnetTimer > 0) ? 'block' : 'none';
-  document.getElementById('speedIndicator').style.display = state.speedBoost ? 'block' : 'none';
-  document.getElementById('doubleJumpBoostIndicator').style.display = state.scoreMultiplier ? 'block' : 'none';
-  document.getElementById('scoreMultiplierIndicator').style.display = state.scoreMultiplier ? 'block' : 'none';
-  document.getElementById('slowMotionIndicator').style.display = (state.slowdownTimer > 0) ? 'block' : 'none';
+  document.getElementById("slowdownIndicator").style.display =
+    state.slowdownTimer > 0 ? "block" : "none";
+  document.getElementById("doubleJumpIndicator").style.display =
+    state.player && state.player.doubleJumpUsed ? "block" : "none";
+  document.getElementById("slidingIndicator").style.display =
+    state.player && state.player.sliding ? "block" : "none";
+  document.getElementById("shieldIndicator").style.display = state.invulnerable
+    ? "block"
+    : "none";
+  document.getElementById("magnetIndicator").style.display =
+    state.magnetTimer > 0 ? "block" : "none";
+  document.getElementById("speedIndicator").style.display = state.speedBoost
+    ? "block"
+    : "none";
+  document.getElementById("doubleJumpBoostIndicator").style.display =
+    state.scoreMultiplier ? "block" : "none";
+  document.getElementById("scoreMultiplierIndicator").style.display =
+    state.scoreMultiplier ? "block" : "none";
+  document.getElementById("slowMotionIndicator").style.display =
+    state.slowdownTimer > 0 ? "block" : "none";
   // Update obstacle hits
-  document.getElementById('obstacleHits').textContent = state.hitTimestamps ? state.hitTimestamps.length : 0;
+  document.getElementById("obstacleHits").textContent = state.hitTimestamps
+    ? state.hitTimestamps.length
+    : 0;
 
   // Update client game state
   clientGame.score = state.score || 0;
@@ -828,13 +938,17 @@ function drawSun() {
 
   // Outer glow effect
   const outerGlowGradient = ctx.createRadialGradient(
-    centerX, centerY, sunRadius * 0.8,
-    centerX, centerY, sunRadius * 2.5
+    centerX,
+    centerY,
+    sunRadius * 0.8,
+    centerX,
+    centerY,
+    sunRadius * 2.5
   );
-  outerGlowGradient.addColorStop(0, 'rgba(255, 215, 0, 0.8)');
-  outerGlowGradient.addColorStop(0.3, 'rgba(255, 200, 0, 0.4)');
-  outerGlowGradient.addColorStop(0.6, 'rgba(255, 150, 0, 0.2)');
-  outerGlowGradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+  outerGlowGradient.addColorStop(0, "rgba(255, 215, 0, 0.8)");
+  outerGlowGradient.addColorStop(0.3, "rgba(255, 200, 0, 0.4)");
+  outerGlowGradient.addColorStop(0.6, "rgba(255, 150, 0, 0.2)");
+  outerGlowGradient.addColorStop(1, "rgba(255, 100, 0, 0)");
 
   ctx.fillStyle = outerGlowGradient;
   ctx.beginPath();
@@ -843,12 +957,16 @@ function drawSun() {
 
   // Inner glow effect
   const innerGlowGradient = ctx.createRadialGradient(
-    centerX, centerY, 0,
-    centerX, centerY, sunRadius * 1.2
+    centerX,
+    centerY,
+    0,
+    centerX,
+    centerY,
+    sunRadius * 1.2
   );
-  innerGlowGradient.addColorStop(0, 'rgba(255, 255, 200, 1)');
-  innerGlowGradient.addColorStop(0.7, 'rgba(255, 215, 0, 0.9)');
-  innerGlowGradient.addColorStop(1, 'rgba(255, 180, 0, 0.3)');
+  innerGlowGradient.addColorStop(0, "rgba(255, 255, 200, 1)");
+  innerGlowGradient.addColorStop(0.7, "rgba(255, 215, 0, 0.9)");
+  innerGlowGradient.addColorStop(1, "rgba(255, 180, 0, 0.3)");
 
   ctx.fillStyle = innerGlowGradient;
   ctx.beginPath();
@@ -857,13 +975,17 @@ function drawSun() {
 
   // Main sun body with gradient
   const sunGradient = ctx.createRadialGradient(
-    centerX - sunRadius * 0.3, centerY - sunRadius * 0.3, 0,
-    centerX, centerY, sunRadius
+    centerX - sunRadius * 0.3,
+    centerY - sunRadius * 0.3,
+    0,
+    centerX,
+    centerY,
+    sunRadius
   );
-  sunGradient.addColorStop(0, '#FFFFFF');
-  sunGradient.addColorStop(0.3, '#FFFF99');
-  sunGradient.addColorStop(0.7, '#FFD700');
-  sunGradient.addColorStop(1, '#FFA500');
+  sunGradient.addColorStop(0, "#FFFFFF");
+  sunGradient.addColorStop(0.3, "#FFFF99");
+  sunGradient.addColorStop(0.7, "#FFD700");
+  sunGradient.addColorStop(1, "#FFA500");
 
   ctx.fillStyle = sunGradient;
   ctx.beginPath();
@@ -871,7 +993,7 @@ function drawSun() {
   ctx.fill();
 
   // Sun surface details - subtle texture
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+  ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
   for (let i = 0; i < 8; i++) {
     const angle = (i * Math.PI) / 4;
     const x = centerX + Math.cos(angle) * (sunRadius * 0.6);
@@ -882,9 +1004,9 @@ function drawSun() {
   }
 
   // Enhanced rays with gradients
-  ctx.strokeStyle = 'rgba(255, 215, 0, 0.8)';
+  ctx.strokeStyle = "rgba(255, 215, 0, 0.8)";
   ctx.lineWidth = 4;
-  ctx.shadowColor = '#FFD700';
+  ctx.shadowColor = "#FFD700";
   ctx.shadowBlur = 10;
 
   for (let i = 0; i < 12; i++) {
@@ -899,9 +1021,9 @@ function drawSun() {
       centerX + Math.cos(angle) * (sunRadius + rayLength),
       centerY + Math.sin(angle) * (sunRadius + rayLength)
     );
-    rayGradient.addColorStop(0, 'rgba(255, 215, 0, 0.9)');
-    rayGradient.addColorStop(0.5, 'rgba(255, 200, 0, 0.6)');
-    rayGradient.addColorStop(1, 'rgba(255, 150, 0, 0)');
+    rayGradient.addColorStop(0, "rgba(255, 215, 0, 0.9)");
+    rayGradient.addColorStop(0.5, "rgba(255, 200, 0, 0.6)");
+    rayGradient.addColorStop(1, "rgba(255, 150, 0, 0)");
 
     ctx.strokeStyle = rayGradient;
     ctx.lineWidth = rayWidth;
@@ -929,12 +1051,16 @@ function drawSun() {
 
     // Particle glow
     const particleGlow = ctx.createRadialGradient(
-      particleX, particleY, 0,
-      particleX, particleY, particleSize * 3
+      particleX,
+      particleY,
+      0,
+      particleX,
+      particleY,
+      particleSize * 3
     );
-    particleGlow.addColorStop(0, 'rgba(255, 220, 100, 0.8)');
-    particleGlow.addColorStop(0.5, 'rgba(255, 200, 50, 0.4)');
-    particleGlow.addColorStop(1, 'rgba(255, 150, 0, 0)');
+    particleGlow.addColorStop(0, "rgba(255, 220, 100, 0.8)");
+    particleGlow.addColorStop(0.5, "rgba(255, 200, 50, 0.4)");
+    particleGlow.addColorStop(1, "rgba(255, 150, 0, 0)");
 
     ctx.fillStyle = particleGlow;
     ctx.beginPath();
@@ -942,7 +1068,7 @@ function drawSun() {
     ctx.fill();
 
     // Particle core
-    ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
+    ctx.fillStyle = "rgba(255, 255, 200, 0.9)";
     ctx.beginPath();
     ctx.arc(particleX, particleY, particleSize, 0, 2 * Math.PI);
     ctx.fill();
@@ -973,12 +1099,7 @@ function drawClouds(state) {
   state.clouds.forEach((cloud) => {
     ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
     ctx.fillRect(cloud.x, cloud.y, cloud.width, cloud.height);
-    ctx.fillRect(
-      cloud.x + 10,
-      cloud.y - 10,
-      cloud.width - 20,
-      cloud.height
-    );
+    ctx.fillRect(cloud.x + 10, cloud.y - 10, cloud.width - 20, cloud.height);
     ctx.fillRect(
       cloud.x + 15,
       cloud.y + 10,
@@ -991,12 +1112,12 @@ function drawClouds(state) {
 function drawBackgroundTrees(state) {
   if (!state.backgroundTrees || state.backgroundTrees.length === 0) return;
 
-  state.backgroundTrees.forEach(tree => {
+  state.backgroundTrees.forEach((tree) => {
     ctx.save();
 
     // Apply depth-based opacity and scaling
-    const opacity = 0.3 + (tree.depth * 0.7); // Closer trees are more opaque
-    const scale = 0.5 + (tree.depth * 0.5); // Closer trees are larger
+    const opacity = 0.3 + tree.depth * 0.7; // Closer trees are more opaque
+    const scale = 0.5 + tree.depth * 0.5; // Closer trees are larger
 
     ctx.globalAlpha = opacity;
     ctx.translate(tree.x, tree.y);
@@ -1008,19 +1129,19 @@ function drawBackgroundTrees(state) {
 
     // Draw the appropriate tree type
     switch (tree.type) {
-      case 'pine':
+      case "pine":
         drawPineTree(tree);
         break;
-      case 'oak':
+      case "oak":
         drawOakTree(tree);
         break;
-      case 'willow':
+      case "willow":
         drawWillowTree(tree);
         break;
-      case 'cypress':
+      case "cypress":
         drawCypressTree(tree);
         break;
-      case 'maple':
+      case "maple":
         drawMapleTree(tree);
         break;
       default:
@@ -1037,15 +1158,15 @@ function drawPineTree(tree) {
 
   // Draw trunk with bark texture
   ctx.fillStyle = "#654321";
-  ctx.fillRect(-trunkWidth/2, 0, trunkWidth, trunkHeight);
+  ctx.fillRect(-trunkWidth / 2, 0, trunkWidth, trunkHeight);
 
   // Bark texture lines
   ctx.strokeStyle = "#4a2c17";
   ctx.lineWidth = 1;
   for (let i = 0; i < 3; i++) {
     ctx.beginPath();
-    ctx.moveTo(-trunkWidth/4 + i * trunkWidth/4, 0);
-    ctx.lineTo(-trunkWidth/4 + i * trunkWidth/4, trunkHeight);
+    ctx.moveTo(-trunkWidth / 4 + (i * trunkWidth) / 4, 0);
+    ctx.lineTo(-trunkWidth / 4 + (i * trunkWidth) / 4, trunkHeight);
     ctx.stroke();
   }
 
@@ -1060,8 +1181,8 @@ function drawPineTree(tree) {
     ctx.fillStyle = "#0f5132";
     ctx.beginPath();
     ctx.moveTo(0, layerY);
-    ctx.lineTo(-layerWidth/2, layerY + layerHeight);
-    ctx.lineTo(layerWidth/2, layerY + layerHeight);
+    ctx.lineTo(-layerWidth / 2, layerY + layerHeight);
+    ctx.lineTo(layerWidth / 2, layerY + layerHeight);
     ctx.closePath();
     ctx.fill();
 
@@ -1069,8 +1190,8 @@ function drawPineTree(tree) {
     ctx.fillStyle = "#1e7e34";
     ctx.beginPath();
     ctx.moveTo(0, layerY);
-    ctx.lineTo(-layerWidth/3, layerY + layerHeight * 0.7);
-    ctx.lineTo(layerWidth/3, layerY + layerHeight * 0.7);
+    ctx.lineTo(-layerWidth / 3, layerY + layerHeight * 0.7);
+    ctx.lineTo(layerWidth / 3, layerY + layerHeight * 0.7);
     ctx.closePath();
     ctx.fill();
   }
@@ -1082,13 +1203,13 @@ function drawOakTree(tree) {
 
   // Draw trunk
   ctx.fillStyle = "#8B4513";
-  ctx.fillRect(-trunkWidth/2, 0, trunkWidth, trunkHeight);
+  ctx.fillRect(-trunkWidth / 2, 0, trunkWidth, trunkHeight);
 
   // Bark texture
   ctx.strokeStyle = "#654321";
   ctx.lineWidth = 1;
   for (let i = 0; i < 4; i++) {
-    const x = -trunkWidth/2 + (i + 0.5) * trunkWidth/4;
+    const x = -trunkWidth / 2 + ((i + 0.5) * trunkWidth) / 4;
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x + Math.sin(i) * 2, trunkHeight);
@@ -1127,7 +1248,12 @@ function drawWillowTree(tree) {
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.quadraticCurveTo(tree.width * 0.1, -trunkHeight * 0.3, tree.width * 0.05, -trunkHeight);
+  ctx.quadraticCurveTo(
+    tree.width * 0.1,
+    -trunkHeight * 0.3,
+    tree.width * 0.05,
+    -trunkHeight
+  );
   ctx.stroke();
 
   // Willow leaves - drooping branches
@@ -1166,15 +1292,15 @@ function drawCypressTree(tree) {
 
   // Tall, straight trunk
   ctx.fillStyle = "#654321";
-  ctx.fillRect(-trunkWidth/2, 0, trunkWidth, trunkHeight);
+  ctx.fillRect(-trunkWidth / 2, 0, trunkWidth, trunkHeight);
 
   // Vertical bark lines
   ctx.strokeStyle = "#4a2c17";
   ctx.lineWidth = 1;
   for (let i = 0; i < 3; i++) {
     ctx.beginPath();
-    ctx.moveTo(-trunkWidth/4 + i * trunkWidth/4, 0);
-    ctx.lineTo(-trunkWidth/4 + i * trunkWidth/4, trunkHeight);
+    ctx.moveTo(-trunkWidth / 4 + (i * trunkWidth) / 4, 0);
+    ctx.lineTo(-trunkWidth / 4 + (i * trunkWidth) / 4, trunkHeight);
     ctx.stroke();
   }
 
@@ -1188,8 +1314,8 @@ function drawCypressTree(tree) {
     ctx.fillStyle = "#0d5c2a";
     ctx.beginPath();
     ctx.moveTo(0, layerY);
-    ctx.lineTo(-layerWidth/2, layerY + tree.height * 0.15);
-    ctx.lineTo(layerWidth/2, layerY + tree.height * 0.15);
+    ctx.lineTo(-layerWidth / 2, layerY + tree.height * 0.15);
+    ctx.lineTo(layerWidth / 2, layerY + tree.height * 0.15);
     ctx.closePath();
     ctx.fill();
 
@@ -1197,8 +1323,8 @@ function drawCypressTree(tree) {
     ctx.fillStyle = "#1e7e34";
     ctx.beginPath();
     ctx.moveTo(0, layerY);
-    ctx.lineTo(-layerWidth/3, layerY + tree.height * 0.1);
-    ctx.lineTo(layerWidth/3, layerY + tree.height * 0.1);
+    ctx.lineTo(-layerWidth / 3, layerY + tree.height * 0.1);
+    ctx.lineTo(layerWidth / 3, layerY + tree.height * 0.1);
     ctx.closePath();
     ctx.fill();
   }
@@ -1210,7 +1336,7 @@ function drawMapleTree(tree) {
 
   // Draw trunk
   ctx.fillStyle = "#8B4513";
-  ctx.fillRect(-trunkWidth/2, 0, trunkWidth, trunkHeight);
+  ctx.fillRect(-trunkWidth / 2, 0, trunkWidth, trunkHeight);
 
   // Maple leaves - distinctive star shape
   const leafCount = 7;
@@ -1250,7 +1376,7 @@ function generateBackgroundTrees(state) {
     state.backgroundTrees = [];
   }
 
-  const treeTypes = ['pine', 'oak', 'willow', 'cypress', 'maple'];
+  const treeTypes = ["pine", "oak", "willow", "cypress", "maple"];
   const treeCount = 15; // Number of background trees
 
   for (let i = 0; i < treeCount; i++) {
@@ -1260,7 +1386,7 @@ function generateBackgroundTrees(state) {
       width: 40 + Math.random() * 30, // Vary size
       height: 80 + Math.random() * 60,
       depth: Math.random(), // 0-1 for parallax effect
-      type: treeTypes[Math.floor(Math.random() * treeTypes.length)]
+      type: treeTypes[Math.floor(Math.random() * treeTypes.length)],
     };
     state.backgroundTrees.push(tree);
   }
@@ -1271,7 +1397,7 @@ function updateBackgroundTrees(state) {
 
   const scrollSpeed = state.gameSpeed || 2;
 
-  state.backgroundTrees.forEach(tree => {
+  state.backgroundTrees.forEach((tree) => {
     tree.x -= scrollSpeed * (0.5 + tree.depth * 0.5); // Parallax scrolling
 
     // Wrap around when off screen
@@ -1288,7 +1414,12 @@ function drawGround(state) {
   const groundHeight = canvas.height - state.ground;
 
   // Base ground layer with gradient for depth
-  const groundGradient = ctx.createLinearGradient(0, state.ground, 0, canvas.height);
+  const groundGradient = ctx.createLinearGradient(
+    0,
+    state.ground,
+    0,
+    canvas.height
+  );
   groundGradient.addColorStop(0, "#228B22"); // Forest green at top
   groundGradient.addColorStop(0.3, "#228B22"); // Maintain forest green
   groundGradient.addColorStop(1, "#1e5b1e"); // Slightly darker at bottom for depth
@@ -1297,7 +1428,12 @@ function drawGround(state) {
   ctx.fillRect(0, state.ground, canvas.width, groundHeight);
 
   // Add subtle shadow at the bottom for depth
-  const shadowGradient = ctx.createLinearGradient(0, canvas.height - 20, 0, canvas.height);
+  const shadowGradient = ctx.createLinearGradient(
+    0,
+    canvas.height - 20,
+    0,
+    canvas.height
+  );
   shadowGradient.addColorStop(0, "rgba(0, 0, 0, 0)");
   shadowGradient.addColorStop(1, "rgba(0, 0, 0, 0.3)");
 
@@ -1402,7 +1538,10 @@ function drawObstacles(state) {
       if (i % 3 === 0) {
         ctx.beginPath();
         ctx.moveTo(reedX + Math.sin(time + i) * 3, pitY - reedHeight * 0.4);
-        ctx.lineTo(reedX + Math.sin(time + i) * 3 + 4, pitY - reedHeight * 0.4 - 2);
+        ctx.lineTo(
+          reedX + Math.sin(time + i) * 3 + 4,
+          pitY - reedHeight * 0.4 - 2
+        );
         ctx.stroke();
       }
     }
@@ -1448,7 +1587,10 @@ function drawObstacles(state) {
 
       // Fish body with gradient
       const fishGrad = ctx.createLinearGradient(
-        fishX - 6, fishY, fishX + 6, fishY
+        fishX - 6,
+        fishY,
+        fishX + 6,
+        fishY
       );
       fishGrad.addColorStop(0, "rgba(255, 215, 0, 0.7)"); // Gold
       fishGrad.addColorStop(0.5, "rgba(255, 255, 0, 0.8)"); // Yellow
@@ -1481,8 +1623,10 @@ function drawObstacles(state) {
     // Small schooling fish
     for (let f = 0; f < 4; f++) {
       if (Math.sin(time * 0.8 + f * 0.5 + minX * 0.005) > 0.4) {
-        const smallFishX = minX + pitWidth * 0.6 + Math.sin(time * 1.5 + f) * 15 + f * 8;
-        const smallFishY = pitY + pitHeight * 0.7 + Math.sin(time * 2.2 + f * 0.8) * 8;
+        const smallFishX =
+          minX + pitWidth * 0.6 + Math.sin(time * 1.5 + f) * 15 + f * 8;
+        const smallFishY =
+          pitY + pitHeight * 0.7 + Math.sin(time * 2.2 + f * 0.8) * 8;
 
         ctx.fillStyle = "rgba(173, 216, 230, 0.8)"; // Light blue
         ctx.beginPath();
@@ -1502,8 +1646,10 @@ function drawObstacles(state) {
 
     // Underwater bubbles rising
     for (let b = 0; b < 6; b++) {
-      const bubbleX = minX + 15 + (pitWidth - 30) * (b / 5) + Math.sin(time * 0.7 + b) * 5;
-      const bubbleY = pitY + pitHeight - 10 - (time * 20 + b * 30) % (pitHeight - 30);
+      const bubbleX =
+        minX + 15 + (pitWidth - 30) * (b / 5) + Math.sin(time * 0.7 + b) * 5;
+      const bubbleY =
+        pitY + pitHeight - 10 - ((time * 20 + b * 30) % (pitHeight - 30));
       const bubbleSize = 1 + Math.sin(b * 0.5) * 0.5;
 
       ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
@@ -1758,13 +1904,7 @@ function drawObstacles(state) {
 
     ctx.fillStyle = hotCore;
     ctx.beginPath();
-    ctx.arc(
-      centerX,
-      baseY - 5,
-      trap.width * 0.15 * flicker3,
-      0,
-      Math.PI * 2
-    );
+    ctx.arc(centerX, baseY - 5, trap.width * 0.15 * flicker3, 0, Math.PI * 2);
     ctx.fill();
 
     // Floating embers
@@ -1962,13 +2102,10 @@ function drawMonster(state) {
     ctx.lineWidth = 2;
     ctx.setLineDash([8, 6]);
     ctx.shadowBlur = 3;
-    
+
     ctx.beginPath();
     ctx.moveTo(monster.x + monster.width / 2, monster.y + 10);
-    ctx.lineTo(
-      state.player.x + state.player.width / 2,
-      state.player.y + 10
-    );
+    ctx.lineTo(state.player.x + state.player.width / 2, state.player.y + 10);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.shadowBlur = 0;
@@ -1978,7 +2115,7 @@ function drawMonster(state) {
 function drawGhostParticles(mx, my, isDeadly) {
   // Draw subtle floating particles - enhanced with more particles and glow
   const particleCount = isDeadly ? 8 : 5;
-  
+
   // Add glow effect to particles
   if (isDeadly) {
     ctx.shadowColor = "#FF0000";
@@ -1987,8 +2124,10 @@ function drawGhostParticles(mx, my, isDeadly) {
     ctx.shadowColor = "#FFFFFF";
     ctx.shadowBlur = 5;
   }
-  
-  ctx.fillStyle = isDeadly ? "rgba(255, 100, 100, 0.4)" : "rgba(255, 255, 255, 0.3)";
+
+  ctx.fillStyle = isDeadly
+    ? "rgba(255, 100, 100, 0.4)"
+    : "rgba(255, 255, 255, 0.3)";
 
   for (let i = 0; i < particleCount; i++) {
     const angle = (i / particleCount) * Math.PI * 2 + Date.now() * 0.001;
@@ -2001,12 +2140,12 @@ function drawGhostParticles(mx, my, isDeadly) {
     ctx.arc(px, py, size, 0, Math.PI * 2);
     ctx.fill();
   }
-  
+
   // Add additional sparkling particles for more glow
   if (isDeadly) {
     ctx.fillStyle = "rgba(255, 200, 200, 0.6)";
     ctx.shadowBlur = 12;
-    
+
     for (let i = 0; i < 4; i++) {
       const angle = (i / 4) * Math.PI * 2 + Date.now() * 0.0015;
       const distance = 50 + Math.sin(Date.now() * 0.0025 + i) * 15;
@@ -2019,7 +2158,7 @@ function drawGhostParticles(mx, my, isDeadly) {
       ctx.fill();
     }
   }
-  
+
   // Reset shadow
   ctx.shadowBlur = 0;
 }
@@ -2034,7 +2173,7 @@ function drawGhostBody(mx, my, breathe, isDeadly) {
     ctx.shadowColor = "#FFFFFF";
     ctx.shadowBlur = 10;
   }
-  
+
   ctx.globalAlpha = 1;
   ctx.fillStyle = "#F5F5DC"; // Beige-white
   ctx.lineWidth = 3;
@@ -2047,7 +2186,7 @@ function drawGhostBody(mx, my, breathe, isDeadly) {
   // Sides down
   ctx.lineTo(mx + 54, my + 25);
   ctx.lineTo(mx + 54, my + 60);
-  
+
   // Bottom wavy/pointed edge like traditional sheet ghost
   const wavePoints = [
     { x: mx + 54, y: my + 60 },
@@ -2058,9 +2197,9 @@ function drawGhostBody(mx, my, breathe, isDeadly) {
     { x: mx + 28, y: my + 73 },
     { x: mx + 22, y: my + 62 },
     { x: mx + 16, y: my + 70 },
-    { x: mx + 10, y: my + 60 }
+    { x: mx + 10, y: my + 60 },
   ];
-  
+
   // Draw smooth curves through wave points
   for (let i = 1; i < wavePoints.length; i++) {
     const prev = wavePoints[i - 1];
@@ -2069,11 +2208,11 @@ function drawGhostBody(mx, my, breathe, isDeadly) {
     const midY = (prev.y + curr.y) / 2;
     ctx.quadraticCurveTo(prev.x, prev.y, midX, midY);
   }
-  
+
   // Complete back to left side
   ctx.lineTo(mx + 10, my + 25);
   ctx.arc(mx + 32, my + 25, 22, Math.PI, Math.PI * 2, true);
-  
+
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
@@ -2082,7 +2221,7 @@ function drawGhostBody(mx, my, breathe, isDeadly) {
   ctx.strokeStyle = "rgba(200, 200, 180, 0.3)";
   ctx.lineWidth = 1;
   ctx.shadowBlur = 0; // Reset shadow for internal lines
-  
+
   for (let i = 0; i < 3; i++) {
     const x = mx + 18 + i * 7;
     ctx.beginPath();
@@ -2090,7 +2229,7 @@ function drawGhostBody(mx, my, breathe, isDeadly) {
     ctx.lineTo(x, my + 55);
     ctx.stroke();
   }
-  
+
   // Reset shadow
   ctx.shadowBlur = 0;
 }
@@ -2098,20 +2237,30 @@ function drawGhostBody(mx, my, breathe, isDeadly) {
 function drawGhostInterior(mx, my, breathe, time, isDeadly) {
   // Subtle interior shading for depth
   ctx.globalAlpha = 0.15;
-  
+
   // Left side gradient shading
-  const leftGradient = ctx.createLinearGradient(mx + 10, my + 30, mx + 20, my + 30);
+  const leftGradient = ctx.createLinearGradient(
+    mx + 10,
+    my + 30,
+    mx + 20,
+    my + 30
+  );
   leftGradient.addColorStop(0, "rgba(0, 0, 0, 0.5)");
   leftGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
-  
+
   ctx.fillStyle = leftGradient;
   ctx.fillRect(mx + 10, my + 30, 10, 30);
-  
+
   // Right side gradient shading
-  const rightGradient = ctx.createLinearGradient(mx + 44, my + 30, mx + 54, my + 30);
+  const rightGradient = ctx.createLinearGradient(
+    mx + 44,
+    my + 30,
+    mx + 54,
+    my + 30
+  );
   rightGradient.addColorStop(0, "rgba(0, 0, 0, 0)");
   rightGradient.addColorStop(1, "rgba(0, 0, 0, 0.5)");
-  
+
   ctx.fillStyle = rightGradient;
   ctx.fillRect(mx + 44, my + 30, 10, 30);
 }
@@ -2142,7 +2291,7 @@ function drawGhostFace(mx, my, breathe, isDeadly) {
   ctx.beginPath();
   ctx.arc(mx + 23, my + 16 + breathe, 2, 0, Math.PI * 2);
   ctx.fill();
-  
+
   ctx.beginPath();
   ctx.arc(mx + 43, my + 16 + breathe, 2, 0, Math.PI * 2);
   ctx.fill();
@@ -2152,7 +2301,7 @@ function drawGhostFace(mx, my, breathe, isDeadly) {
   ctx.beginPath();
   ctx.arc(mx + 30, my + 30 + breathe, 1.5, 0, Math.PI * 2);
   ctx.fill();
-  
+
   ctx.beginPath();
   ctx.arc(mx + 34, my + 30 + breathe, 1.5, 0, Math.PI * 2);
   ctx.fill();
@@ -2161,11 +2310,11 @@ function drawGhostFace(mx, my, breathe, isDeadly) {
 function drawGhostAura(mx, my, time, isDeadly) {
   // Draw dark aura around the ghost for added scariness - enhanced glow
   ctx.globalAlpha = 0.4;
-  
+
   // Pulsing dark aura with enhanced glow
   const auraPulse = 1 + Math.sin(time * 2.5) * 0.3;
   const auraRadius = 50 * auraPulse;
-  
+
   // Add shadow glow effect
   if (isDeadly) {
     ctx.shadowColor = "#FF0000";
@@ -2174,8 +2323,15 @@ function drawGhostAura(mx, my, time, isDeadly) {
     ctx.shadowColor = "#FFFFFF";
     ctx.shadowBlur = 15;
   }
-  
-  const auraGradient = ctx.createRadialGradient(mx + 32, my + 40, 0, mx + 32, my + 40, auraRadius);
+
+  const auraGradient = ctx.createRadialGradient(
+    mx + 32,
+    my + 40,
+    0,
+    mx + 32,
+    my + 40,
+    auraRadius
+  );
   if (isDeadly) {
     auraGradient.addColorStop(0, "rgba(255, 0, 0, 1.0)");
     auraGradient.addColorStop(0.4, "rgba(255, 50, 50, 0.6)");
@@ -2187,19 +2343,19 @@ function drawGhostAura(mx, my, time, isDeadly) {
     auraGradient.addColorStop(0.7, "rgba(60, 60, 60, 0.4)");
     auraGradient.addColorStop(1, "rgba(0, 0, 0, 0)");
   }
-  
+
   ctx.fillStyle = auraGradient;
   ctx.beginPath();
   ctx.arc(mx + 32, my + 40, auraRadius, 0, Math.PI * 2);
   ctx.fill();
-  
+
   // Add jagged shadow beneath ghost with glow
   ctx.globalAlpha = 0.5;
   ctx.fillStyle = isDeadly ? "rgba(255, 0, 0, 0.8)" : "rgba(0, 0, 0, 0.8)";
   ctx.beginPath();
   ctx.ellipse(mx + 32, my + 80, 40, 18, 0, 0, Math.PI * 2);
   ctx.fill();
-  
+
   // Reset shadow and alpha
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
@@ -2208,18 +2364,18 @@ function drawGhostAura(mx, my, time, isDeadly) {
 function drawGhostChains(mx, my, time, isDeadly) {
   // Draw floating chains around the ghost for horror effect
   if (!isDeadly) return;
-  
+
   ctx.strokeStyle = "rgba(50, 50, 50, 0.8)";
   ctx.lineWidth = 2;
   ctx.globalAlpha = 0.7;
-  
+
   // Left chain
   const leftChainSwing = Math.sin(time * 1.5) * 5;
   ctx.beginPath();
   ctx.moveTo(mx + 10, my + 20);
   ctx.quadraticCurveTo(mx + 5 + leftChainSwing, my + 40, mx - 5, my + 60);
   ctx.stroke();
-  
+
   // Draw chain links
   for (let i = 0; i < 3; i++) {
     const linkY = my + 30 + i * 10;
@@ -2227,14 +2383,14 @@ function drawGhostChains(mx, my, time, isDeadly) {
     ctx.arc(mx + 8 + leftChainSwing * 0.3, linkY, 2, 0, Math.PI * 2);
     ctx.stroke();
   }
-  
+
   // Right chain
   const rightChainSwing = Math.sin(time * 1.5 + Math.PI) * 5;
   ctx.beginPath();
   ctx.moveTo(mx + 54, my + 20);
   ctx.quadraticCurveTo(mx + 59 + rightChainSwing, my + 40, mx + 69, my + 60);
   ctx.stroke();
-  
+
   // Draw chain links
   for (let i = 0; i < 3; i++) {
     const linkY = my + 30 + i * 10;
@@ -2242,14 +2398,14 @@ function drawGhostChains(mx, my, time, isDeadly) {
     ctx.arc(mx + 56 + rightChainSwing * 0.3, linkY, 2, 0, Math.PI * 2);
     ctx.stroke();
   }
-  
+
   ctx.globalAlpha = 1;
 }
 
 function drawGhostMist(mx, my, time, isDeadly) {
   // Draw dark mist particles around the ghost - enhanced with glow
   ctx.fillStyle = isDeadly ? "rgba(255, 50, 50, 0.4)" : "rgba(30, 30, 30, 0.4)";
-  
+
   // Add glow to mist particles
   if (isDeadly) {
     ctx.shadowColor = "#FF0000";
@@ -2258,9 +2414,9 @@ function drawGhostMist(mx, my, time, isDeadly) {
     ctx.shadowColor = "#FFFFFF";
     ctx.shadowBlur = 4;
   }
-  
+
   ctx.globalAlpha = 0.6;
-  
+
   const mistCount = isDeadly ? 10 : 6;
   for (let i = 0; i < mistCount; i++) {
     const angle = (i / mistCount) * Math.PI * 2 + time * 0.5;
@@ -2268,12 +2424,12 @@ function drawGhostMist(mx, my, time, isDeadly) {
     const mistX = mx + 32 + Math.cos(angle) * distance;
     const mistY = my + 40 + Math.sin(angle) * distance;
     const mistSize = 4 + Math.sin(time * 1.2 + i * 0.7) * 3;
-    
+
     ctx.beginPath();
     ctx.arc(mistX, mistY, mistSize, 0, Math.PI * 2);
     ctx.fill();
   }
-  
+
   // Reset shadow and alpha
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
@@ -2282,48 +2438,64 @@ function drawGhostMist(mx, my, time, isDeadly) {
 function drawGhostRedEyes(mx, my, breathe, time) {
   // Draw glowing red eyes that pulse when deadly - enhanced glow
   const eyePulse = 1 + Math.sin(time * 4) * 0.4;
-  
+
   // Enhanced red glow behind eyes
   ctx.shadowColor = "#FF0000";
   ctx.shadowBlur = 15 * eyePulse;
-  
+
   ctx.fillStyle = "#FF0000";
   ctx.globalAlpha = 0.9;
-  
+
   // Left red eye with enhanced glow
   ctx.beginPath();
-  ctx.ellipse(mx + 22, my + 18 + breathe, 5 * eyePulse, 7 * eyePulse, 0, 0, Math.PI * 2);
+  ctx.ellipse(
+    mx + 22,
+    my + 18 + breathe,
+    5 * eyePulse,
+    7 * eyePulse,
+    0,
+    0,
+    Math.PI * 2
+  );
   ctx.fill();
-  
+
   // Right red eye with enhanced glow
   ctx.beginPath();
-  ctx.ellipse(mx + 42, my + 18 + breathe, 5 * eyePulse, 7 * eyePulse, 0, 0, Math.PI * 2);
+  ctx.ellipse(
+    mx + 42,
+    my + 18 + breathe,
+    5 * eyePulse,
+    7 * eyePulse,
+    0,
+    0,
+    Math.PI * 2
+  );
   ctx.fill();
-  
+
   // Bright red pupils with intense glow
   ctx.fillStyle = "#FF6666";
   ctx.shadowBlur = 8 * eyePulse;
-  
+
   ctx.beginPath();
   ctx.arc(mx + 22, my + 18 + breathe, 2.5 * eyePulse, 0, Math.PI * 2);
   ctx.fill();
-  
+
   ctx.beginPath();
   ctx.arc(mx + 42, my + 18 + breathe, 2.5 * eyePulse, 0, Math.PI * 2);
   ctx.fill();
-  
+
   // Add extra bright core to eyes
   ctx.fillStyle = "#FFFFFF";
   ctx.shadowBlur = 3 * eyePulse;
-  
+
   ctx.beginPath();
   ctx.arc(mx + 22, my + 18 + breathe, 1 * eyePulse, 0, Math.PI * 2);
   ctx.fill();
-  
+
   ctx.beginPath();
   ctx.arc(mx + 42, my + 18 + breathe, 1 * eyePulse, 0, Math.PI * 2);
   ctx.fill();
-  
+
   // Reset shadow
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
@@ -2333,48 +2505,86 @@ function drawGhostOuterGlow(mx, my, time, isDeadly) {
   // Enhanced outer glow effect that surrounds the entire ghost
   const glowIntensity = isDeadly ? 1.5 : 1.0;
   const pulse = 1 + Math.sin(time * 2) * 0.2;
-  
+
   // Large outer glow
   const outerGlowGradient = ctx.createRadialGradient(
-    mx + 32, my + 40, 0,
-    mx + 32, my + 40, 80 * pulse
+    mx + 32,
+    my + 40,
+    0,
+    mx + 32,
+    my + 40,
+    80 * pulse
   );
-  
+
   if (isDeadly) {
     // Deadly ghost: red-tinted glow
-    outerGlowGradient.addColorStop(0, `rgba(255, 0, 0, ${0.3 * glowIntensity})`);
-    outerGlowGradient.addColorStop(0.3, `rgba(255, 100, 100, ${0.2 * glowIntensity})`);
-    outerGlowGradient.addColorStop(0.6, `rgba(255, 150, 150, ${0.1 * glowIntensity})`);
+    outerGlowGradient.addColorStop(
+      0,
+      `rgba(255, 0, 0, ${0.3 * glowIntensity})`
+    );
+    outerGlowGradient.addColorStop(
+      0.3,
+      `rgba(255, 100, 100, ${0.2 * glowIntensity})`
+    );
+    outerGlowGradient.addColorStop(
+      0.6,
+      `rgba(255, 150, 150, ${0.1 * glowIntensity})`
+    );
     outerGlowGradient.addColorStop(1, "rgba(255, 200, 200, 0)");
   } else {
     // Normal ghost: ethereal white-blue glow
-    outerGlowGradient.addColorStop(0, `rgba(255, 255, 255, ${0.4 * glowIntensity})`);
-    outerGlowGradient.addColorStop(0.3, `rgba(173, 216, 230, ${0.3 * glowIntensity})`);
-    outerGlowGradient.addColorStop(0.6, `rgba(135, 206, 235, ${0.15 * glowIntensity})`);
+    outerGlowGradient.addColorStop(
+      0,
+      `rgba(255, 255, 255, ${0.4 * glowIntensity})`
+    );
+    outerGlowGradient.addColorStop(
+      0.3,
+      `rgba(173, 216, 230, ${0.3 * glowIntensity})`
+    );
+    outerGlowGradient.addColorStop(
+      0.6,
+      `rgba(135, 206, 235, ${0.15 * glowIntensity})`
+    );
     outerGlowGradient.addColorStop(1, "rgba(173, 216, 230, 0)");
   }
-  
+
   ctx.fillStyle = outerGlowGradient;
   ctx.beginPath();
   ctx.arc(mx + 32, my + 40, 80 * pulse, 0, Math.PI * 2);
   ctx.fill();
-  
+
   // Additional inner glow layer for more intensity
   const innerGlowGradient = ctx.createRadialGradient(
-    mx + 32, my + 40, 0,
-    mx + 32, my + 40, 50 * pulse
+    mx + 32,
+    my + 40,
+    0,
+    mx + 32,
+    my + 40,
+    50 * pulse
   );
-  
+
   if (isDeadly) {
-    innerGlowGradient.addColorStop(0, `rgba(255, 50, 50, ${0.5 * glowIntensity})`);
-    innerGlowGradient.addColorStop(0.5, `rgba(255, 100, 100, ${0.3 * glowIntensity})`);
+    innerGlowGradient.addColorStop(
+      0,
+      `rgba(255, 50, 50, ${0.5 * glowIntensity})`
+    );
+    innerGlowGradient.addColorStop(
+      0.5,
+      `rgba(255, 100, 100, ${0.3 * glowIntensity})`
+    );
     innerGlowGradient.addColorStop(1, "rgba(255, 150, 150, 0)");
   } else {
-    innerGlowGradient.addColorStop(0, `rgba(255, 255, 255, ${0.6 * glowIntensity})`);
-    innerGlowGradient.addColorStop(0.5, `rgba(200, 220, 255, ${0.4 * glowIntensity})`);
+    innerGlowGradient.addColorStop(
+      0,
+      `rgba(255, 255, 255, ${0.6 * glowIntensity})`
+    );
+    innerGlowGradient.addColorStop(
+      0.5,
+      `rgba(200, 220, 255, ${0.4 * glowIntensity})`
+    );
     innerGlowGradient.addColorStop(1, "rgba(173, 216, 230, 0)");
   }
-  
+
   ctx.fillStyle = innerGlowGradient;
   ctx.beginPath();
   ctx.arc(mx + 32, my + 40, 50 * pulse, 0, Math.PI * 2);
@@ -2384,7 +2594,7 @@ function drawGhostOuterGlow(mx, my, time, isDeadly) {
 function drawParticles(state) {
   if (!state.particles) return;
 
-  state.particles.forEach(particle => {
+  state.particles.forEach((particle) => {
     ctx.fillStyle = particle.color;
     ctx.globalAlpha = particle.life / 40; // Fade out as life decreases
     ctx.beginPath();
@@ -2571,15 +2781,7 @@ function drawPlayer(state) {
   // Hair with texture (side profile)
   ctx.fillStyle = "#92400E"; // Brown hair
   ctx.beginPath();
-  ctx.ellipse(
-    px + 18,
-    adjustedY + 4,
-    12,
-    9,
-    0,
-    Math.PI * 0.8,
-    Math.PI * 2.2
-  );
+  ctx.ellipse(px + 18, adjustedY + 4, 12, 9, 0, Math.PI * 0.8, Math.PI * 2.2);
   ctx.fill();
 
   // Hair strands for texture (adjusted for side view)
@@ -2893,7 +3095,7 @@ function drawCrouchingPlayer(px, py, state) {
 function drawPowerUps(state) {
   if (!state.powerUps) return;
 
-  state.powerUps.forEach(powerUp => {
+  state.powerUps.forEach((powerUp) => {
     const pulsation = 1 + Math.sin(powerUp.frame * 2) * 0.1;
     const px = powerUp.x + powerUp.width / 2;
     const py = powerUp.y + powerUp.height / 2;
@@ -3086,10 +3288,15 @@ function drawRopes(state) {
 
     // Left post
     ctx.fillStyle = "#8B4513"; // Brown wood
-    ctx.fillRect(rope.x - postWidth/2, rope.y - 10, postWidth, postHeight);
+    ctx.fillRect(rope.x - postWidth / 2, rope.y - 10, postWidth, postHeight);
 
     // Right post
-    ctx.fillRect(rope.x + rope.width - postWidth/2, rope.y - 10, postWidth, postHeight);
+    ctx.fillRect(
+      rope.x + rope.width - postWidth / 2,
+      rope.y - 10,
+      postWidth,
+      postHeight
+    );
 
     // Post details - wood grain
     ctx.strokeStyle = "#654321";
@@ -3097,14 +3304,17 @@ function drawRopes(state) {
     for (let i = 0; i < 3; i++) {
       // Left post grain
       ctx.beginPath();
-      ctx.moveTo(rope.x - postWidth/2 + 2 + i*2, rope.y - 5);
-      ctx.lineTo(rope.x - postWidth/2 + 2 + i*2, rope.y + postHeight - 5);
+      ctx.moveTo(rope.x - postWidth / 2 + 2 + i * 2, rope.y - 5);
+      ctx.lineTo(rope.x - postWidth / 2 + 2 + i * 2, rope.y + postHeight - 5);
       ctx.stroke();
 
       // Right post grain
       ctx.beginPath();
-      ctx.moveTo(rope.x + rope.width - postWidth/2 + 2 + i*2, rope.y - 5);
-      ctx.lineTo(rope.x + rope.width - postWidth/2 + 2 + i*2, rope.y + postHeight - 5);
+      ctx.moveTo(rope.x + rope.width - postWidth / 2 + 2 + i * 2, rope.y - 5);
+      ctx.lineTo(
+        rope.x + rope.width - postWidth / 2 + 2 + i * 2,
+        rope.y + postHeight - 5
+      );
       ctx.stroke();
     }
 
@@ -3156,8 +3366,12 @@ function drawRopes(state) {
     // Draw foliage/leaves hanging from the rope
     const leafCount = 6;
     for (let i = 0; i < leafCount; i++) {
-      const leafX = rope.x + (rope.width / leafCount) * i + Math.random() * 20 - 10;
-      const leafY = ropeTopY + (ropeBottomY - ropeTopY) * (i / leafCount) + Math.random() * 10;
+      const leafX =
+        rope.x + (rope.width / leafCount) * i + Math.random() * 20 - 10;
+      const leafY =
+        ropeTopY +
+        (ropeBottomY - ropeTopY) * (i / leafCount) +
+        Math.random() * 10;
       const swingInfluence = Math.sin((i / leafCount) * Math.PI) * swingOffset;
 
       // Leaf stem
@@ -3171,12 +3385,21 @@ function drawRopes(state) {
       // Leaf shape
       ctx.fillStyle = "#32CD32";
       ctx.beginPath();
-      ctx.ellipse(leafX + swingInfluence, leafY + 6, 4 + Math.random() * 2, 6 + Math.random() * 3, Math.random() * 0.5, 0, Math.PI * 2);
+      ctx.ellipse(
+        leafX + swingInfluence,
+        leafY + 6,
+        4 + Math.random() * 2,
+        6 + Math.random() * 3,
+        Math.random() * 0.5,
+        0,
+        Math.PI * 2
+      );
       ctx.fill();
     }
 
     // Draw "HOLD SPACE" instruction when player is near
-    const playerNear = state.player && Math.abs(state.player.x - ropeCenterX) < 100;
+    const playerNear =
+      state.player && Math.abs(state.player.x - ropeCenterX) < 100;
     if (playerNear && !state.player.onRope) {
       ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
       ctx.strokeStyle = "#000000";
@@ -3202,7 +3425,7 @@ function drawRopes(state) {
 // Handle game state changes
 function handleGameState(state) {
   if (!state) return;
-  if (state.gameState === 'gameOver') {
+  if (state.gameState === "gameOver") {
     // Call client-side game over handling
     clientGame.gameOver();
   } else {
@@ -3228,16 +3451,8 @@ function drawCatchingEffects(state) {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     const shake = Math.sin(Date.now() * 0.005) * 5;
-    ctx.strokeText(
-      "CAUGHT!",
-      canvas.width / 2 + shake,
-      canvas.height / 2
-    );
-    ctx.fillText(
-      "CAUGHT!",
-      canvas.width / 2 + shake,
-      canvas.height / 2
-    );
+    ctx.strokeText("CAUGHT!", canvas.width / 2 + shake, canvas.height / 2);
+    ctx.fillText("CAUGHT!", canvas.width / 2 + shake, canvas.height / 2);
     ctx.restore();
   }
 
@@ -3274,5 +3489,3 @@ function gameLoop() {
 
 // Start the game loop
 gameLoop();
-
-
