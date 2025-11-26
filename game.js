@@ -49,12 +49,21 @@ class ClientGame {
     // Audio properties
     this.audioContext = null;
     this.audioEnabled =
-      JSON.parse(localStorage.getItem("audioEnabled")) || true;
+      localStorage.getItem("audioEnabled") === null
+        ? true
+        : JSON.parse(localStorage.getItem("audioEnabled"));
     this.musicEnabled =
-      JSON.parse(localStorage.getItem("musicEnabled")) || true;
+      localStorage.getItem("musicEnabled") === null
+        ? true
+        : JSON.parse(localStorage.getItem("musicEnabled"));
     this.backgroundMusic = new Audio("/song/song.mp3");
     this.backgroundMusic.loop = true;
     this.backgroundMusic.volume = 0.3;
+
+    // Ensure audio and music button labels are visible on load
+    setTimeout(() => {
+      this.updateAudioButtons();
+    }, 0);
   }
 
   gameOver() {
@@ -74,7 +83,7 @@ class ClientGame {
     // Play game over sound
     this.playGameOverSound();
 
-    document.getElementById("backLink").style.display = "block";
+    // document.getElementById("backLink").style.display = "block";
     this.showGameOverScreen();
 
     // Save score to server
@@ -592,6 +601,8 @@ class ClientGame {
       // No shake
       this.hitShakeX = 0;
       this.hitShakeY = 0;
+      // Play hit sound
+      this.playHitSound();
     }
 
     const hitEffectActive = this.hitEffectTimer > 0;
@@ -738,6 +749,7 @@ class ClientGame {
 
 // Create client game instance
 const clientGame = new ClientGame();
+clientGame.initAudio();
 
 let gameState = null;
 
@@ -755,6 +767,10 @@ window.addEventListener("keydown", (e) => {
   if (!keys[e.code]) {
     keys[e.code] = true;
     socket.emit("input", { type: "keydown", code: e.code });
+    // Play jump sound on jump keys
+    if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") {
+      clientGame.playJumpSound();
+    }
   }
 });
 window.addEventListener("keyup", (e) => {
@@ -773,6 +789,14 @@ document.getElementById("startBtn").addEventListener("click", () => {
   clientGame.gameLoop();
   // Emit start to server if needed
   socket.emit("start");
+});
+
+// Add event listeners for audio and music toggle buttons
+document.getElementById("audioToggle").addEventListener("click", () => {
+  clientGame.toggleAudio();
+});
+document.getElementById("musicToggle").addEventListener("click", () => {
+  clientGame.toggleMusic();
 });
 
 document.getElementById("pauseBtn").addEventListener("click", () => {
@@ -3430,7 +3454,16 @@ function handleGameState(state) {
     clientGame.gameOver();
   } else {
     // Synchronize client-side game state with server state for non-gameOver states
+    const prevGameState = clientGame.gameState;
     clientGame.gameState = state.gameState;
+    // Start background music if transitioning to playing and music is enabled
+    if (
+      state.gameState === "playing" &&
+      prevGameState !== "playing" &&
+      clientGame.musicEnabled
+    ) {
+      clientGame.startBackgroundMusic();
+    }
   }
 }
 
