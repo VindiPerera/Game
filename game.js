@@ -622,7 +622,8 @@ class ClientGame {
 
     // Draw clouds and trees
     drawClouds(state);
-    drawBackgroundTrees(state);
+    drawTrees(state);
+    drawTrees(state);
 
     // Draw ground
     drawGround(state);
@@ -851,7 +852,6 @@ function renderGame(state) {
 
   // Draw clouds and trees
   drawClouds(state);
-  drawBackgroundTrees(state);
 
   // Draw ground
   drawGround(state);
@@ -861,9 +861,6 @@ function renderGame(state) {
 
   // Draw moving platforms
   drawMovingPlatforms(state);
-
-  // Draw ropes
-  drawRopes(state);
 
   // Draw coins
   drawCoins(state);
@@ -917,16 +914,21 @@ function updateUI(state) {
   document.getElementById("speedIndicator").style.display = state.speedBoost
     ? "block"
     : "none";
-  document.getElementById("doubleJumpBoostIndicator").style.display =
-    state.scoreMultiplier ? "block" : "none";
   document.getElementById("scoreMultiplierIndicator").style.display =
     state.scoreMultiplier ? "block" : "none";
-  document.getElementById("slowMotionIndicator").style.display =
-    state.slowdownTimer > 0 ? "block" : "none";
   // Update obstacle hits
-  document.getElementById("obstacleHits").textContent = state.hitTimestamps
-    ? state.hitTimestamps.length
-    : 0;
+  const hitCount = state.hitTimestamps ? state.hitTimestamps.length : 0;
+  const heartsContainer = document.getElementById("obstacleHits");
+  const hearts = heartsContainer.querySelectorAll('.heart');
+  
+  // Update each heart based on hit count
+  hearts.forEach((heart, index) => {
+    if (index < hitCount) {
+      heart.className = 'heart hollow';
+    } else {
+      heart.className = 'heart filled';
+    }
+  });
 
   // Update client game state
   clientGame.score = state.score || 0;
@@ -938,14 +940,52 @@ function updateUI(state) {
 function drawBackground(state) {
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
   if (state.isNightMode) {
-    gradient.addColorStop(0, "#191970");
-    gradient.addColorStop(1, "#000080");
+    // Realistic night sky gradient with multiple color stops - darker colors
+    gradient.addColorStop(0, "#000011"); // Very dark navy blue at top
+    gradient.addColorStop(0.2, "#0a0a2a"); // Dark blue
+    gradient.addColorStop(0.4, "#1a1a3a"); // Darker blue
+    gradient.addColorStop(0.6, "#2a2a4a"); // Dark blue with purple tint
+    gradient.addColorStop(0.8, "#1a1a2a"); // Very dark blue-gray
+    gradient.addColorStop(1, "#0f0f1a"); // Extremely dark blue-gray at bottom
   } else {
     gradient.addColorStop(0, "#87CEEB");
     gradient.addColorStop(1, "#98FB98");
   }
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw stars for night mode
+  if (state.isNightMode) {
+    drawStars();
+  }
+}
+
+function drawStars() {
+  const time = Date.now() * 0.001;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+
+  // Draw twinkling stars
+  for (let i = 0; i < 50; i++) {
+    const x = (i * 37) % canvas.width; // Distribute stars across width
+    const y = 20 + (i * 23) % (canvas.height * 0.6); // Stars in upper 60% of sky
+    const twinkle = Math.sin(time * 2 + i * 0.5) * 0.3 + 0.7; // Twinkling effect
+    const size = (0.5 + (i % 3) * 0.5) * twinkle; // Vary star sizes
+
+    ctx.globalAlpha = twinkle;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Add a subtle glow to brighter stars
+    if (i % 5 === 0) {
+      ctx.globalAlpha = twinkle * 0.3;
+      ctx.beginPath();
+      ctx.arc(x, y, size * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  ctx.globalAlpha = 1; // Reset alpha
 }
 
 function drawSun() {
@@ -1133,304 +1173,330 @@ function drawClouds(state) {
   });
 }
 
-function drawBackgroundTrees(state) {
-  if (!state.backgroundTrees || state.backgroundTrees.length === 0) return;
+function drawTrees(state) {
+  if (!state.trees) return;
 
-  state.backgroundTrees.forEach((tree) => {
-    ctx.save();
+  state.trees.forEach((tree) => {
+    // Parallax effect: trees move slower than foreground elements
+    const parallaxX = tree.x - (state.distance * 0.1); // Adjust parallax factor as needed
 
-    // Apply depth-based opacity and scaling
-    const opacity = 0.3 + tree.depth * 0.7; // Closer trees are more opaque
-    const scale = 0.5 + tree.depth * 0.5; // Closer trees are larger
-
-    ctx.globalAlpha = opacity;
-    ctx.translate(tree.x, tree.y);
-    ctx.scale(scale, scale);
-
-    // Apply natural rotation
-    const rotation = Math.sin(tree.x * 0.01 + tree.y * 0.01) * 0.1;
-    ctx.rotate(rotation);
-
-    // Draw the appropriate tree type
+    // Draw different tree types based on tree.type
     switch (tree.type) {
-      case "pine":
-        drawPineTree(tree);
+      case 0:
+        // Oak tree - round canopy
+        drawOakTree(parallaxX, tree.y, tree.width, tree.height);
         break;
-      case "oak":
-        drawOakTree(tree);
+      case 1:
+        // Pine tree - triangular/conical shape
+        drawPineTree(parallaxX, tree.y, tree.width, tree.height);
         break;
-      case "willow":
-        drawWillowTree(tree);
+      case 2:
+        // Birch tree - white trunk, smaller canopy
+        drawBirchTree(parallaxX, tree.y, tree.width, tree.height);
         break;
-      case "cypress":
-        drawCypressTree(tree);
-        break;
-      case "maple":
-        drawMapleTree(tree);
+      case 3:
+        // Willow tree - drooping branches
+        drawWillowTree(parallaxX, tree.y, tree.width, tree.height);
         break;
       default:
-        drawOakTree(tree); // Default fallback
+        // Fallback to basic tree
+        drawOakTree(parallaxX, tree.y, tree.width, tree.height);
+        break;
     }
-
-    ctx.restore();
   });
 }
 
-function drawPineTree(tree) {
-  const trunkHeight = tree.height * 0.6;
-  const trunkWidth = tree.width * 0.15;
-
-  // Draw trunk with bark texture
-  ctx.fillStyle = "#654321";
-  ctx.fillRect(-trunkWidth / 2, 0, trunkWidth, trunkHeight);
-
-  // Bark texture lines
-  ctx.strokeStyle = "#4a2c17";
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 3; i++) {
-    ctx.beginPath();
-    ctx.moveTo(-trunkWidth / 4 + (i * trunkWidth) / 4, 0);
-    ctx.lineTo(-trunkWidth / 4 + (i * trunkWidth) / 4, trunkHeight);
-    ctx.stroke();
-  }
-
-  // Pine needle layers
-  const layerCount = 4;
-  for (let i = 0; i < layerCount; i++) {
-    const layerY = -trunkHeight * 0.8 + i * (trunkHeight * 0.4);
-    const layerWidth = tree.width * (0.8 - i * 0.15);
-    const layerHeight = tree.height * 0.25;
-
-    // Dark green base
-    ctx.fillStyle = "#0f5132";
-    ctx.beginPath();
-    ctx.moveTo(0, layerY);
-    ctx.lineTo(-layerWidth / 2, layerY + layerHeight);
-    ctx.lineTo(layerWidth / 2, layerY + layerHeight);
-    ctx.closePath();
-    ctx.fill();
-
-    // Lighter green highlights
-    ctx.fillStyle = "#1e7e34";
-    ctx.beginPath();
-    ctx.moveTo(0, layerY);
-    ctx.lineTo(-layerWidth / 3, layerY + layerHeight * 0.7);
-    ctx.lineTo(layerWidth / 3, layerY + layerHeight * 0.7);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-
-function drawOakTree(tree) {
-  const trunkHeight = tree.height * 0.7;
-  const trunkWidth = tree.width * 0.2;
+function drawOakTree(x, y, width, height) {
+  // Calculate scaling factor based on tree size
+  const scale = Math.max(width / 50, height / 200); // Base size reference
 
   // Draw trunk
-  ctx.fillStyle = "#8B4513";
-  ctx.fillRect(-trunkWidth / 2, 0, trunkWidth, trunkHeight);
+  ctx.fillStyle = "#8B4513"; // Brown trunk
+  const trunkWidth = Math.max(4 * scale, 2);
+  const trunkHeight = Math.max(25 * scale, 10);
+  ctx.fillRect(x + width / 2 - trunkWidth / 2, y + height - trunkHeight, trunkWidth, trunkHeight);
 
-  // Bark texture
-  ctx.strokeStyle = "#654321";
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 4; i++) {
-    const x = -trunkWidth / 2 + ((i + 0.5) * trunkWidth) / 4;
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x + Math.sin(i) * 2, trunkHeight);
-    ctx.stroke();
-  }
+  // Draw round canopy (oak tree)
+  ctx.fillStyle = "#228B22"; // Forest green
+  const canopyRadius = Math.max(18 * scale, 8);
+  ctx.beginPath();
+  ctx.arc(x + width / 2, y + height - trunkHeight - canopyRadius + 5, canopyRadius, 0, Math.PI * 2);
+  ctx.fill();
 
-  // Oak leaves - multiple clusters
-  const leafClusters = 5;
-  for (let i = 0; i < leafClusters; i++) {
-    const angle = (i / leafClusters) * Math.PI * 2;
-    const distance = tree.width * 0.3;
-    const clusterX = Math.cos(angle) * distance;
-    const clusterY = -trunkHeight * 0.6 + Math.sin(angle) * tree.height * 0.2;
-
-    // Main leaf cluster
-    ctx.fillStyle = "#228B22";
-    ctx.beginPath();
-    ctx.arc(clusterX, clusterY, tree.width * 0.25, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Highlight
-    ctx.fillStyle = "#32CD32";
-    ctx.beginPath();
-    ctx.arc(clusterX - 3, clusterY - 3, tree.width * 0.15, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // Add some variation - smaller circles for layered foliage
+  ctx.fillStyle = "#32CD32"; // Lighter green
+  const smallCanopyRadius = Math.max(12 * scale, 6);
+  ctx.beginPath();
+  ctx.arc(x + width / 2 - 8 * scale, y + height - trunkHeight - smallCanopyRadius + 5, smallCanopyRadius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + width / 2 + 8 * scale, y + height - trunkHeight - smallCanopyRadius + 5, smallCanopyRadius, 0, Math.PI * 2);
+  ctx.fill();
 }
 
-function drawWillowTree(tree) {
-  const trunkHeight = tree.height * 0.8;
-  const trunkWidth = tree.width * 0.12;
+function drawPineTree(x, y, width, height) {
+  // Calculate scaling factor based on tree size
+  const scale = Math.max(width / 50, height / 200); // Base size reference
 
-  // Curved trunk
-  ctx.strokeStyle = "#8B4513";
-  ctx.lineWidth = trunkWidth;
-  ctx.lineCap = "round";
+  // Draw trunk with more detail
+  ctx.fillStyle = "#654321"; // Darker brown trunk
+  const trunkWidth = Math.max(3 * scale, 1.5);
+  const trunkHeight = Math.max(35 * scale, 15);
+  ctx.fillRect(x + width / 2 - trunkWidth / 2, y + height - trunkHeight, trunkWidth, trunkHeight);
+
+  // Add trunk texture lines
+  ctx.strokeStyle = "#4A2C17";
+  ctx.lineWidth = Math.max(1 * scale, 0.5);
   ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.quadraticCurveTo(
-    tree.width * 0.1,
-    -trunkHeight * 0.3,
-    tree.width * 0.05,
-    -trunkHeight
-  );
+  ctx.moveTo(x + width / 2 - trunkWidth / 4, y + height - trunkHeight);
+  ctx.lineTo(x + width / 2 - trunkWidth / 4, y + height);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + width / 2 + trunkWidth / 4, y + height - trunkHeight);
+  ctx.lineTo(x + width / 2 + trunkWidth / 4, y + height);
   ctx.stroke();
 
-  // Willow leaves - drooping branches
-  ctx.strokeStyle = "#228B22";
-  ctx.lineWidth = 2;
-  const branchCount = 6;
-  for (let i = 0; i < branchCount; i++) {
-    const branchY = -trunkHeight * (0.2 + i * 0.15);
-    const branchLength = tree.width * (0.4 + Math.random() * 0.3);
+  // Draw multiple pine layers with gradients for depth
+  const baseLayerWidth = 28 * scale;
+  const baseLayerHeight = 20 * scale;
+  const layers = [
+    { y: y + height - trunkHeight, width: baseLayerWidth, height: baseLayerHeight, color1: "#0F5132", color2: "#1B5E3A" }, // Bottom layer
+    { y: y + height - trunkHeight - baseLayerHeight * 0.8, width: baseLayerWidth * 0.9, height: baseLayerHeight * 0.95, color1: "#1B5E3A", color2: "#2D7D4A" }, // Middle layer
+    { y: y + height - trunkHeight - baseLayerHeight * 1.6, width: baseLayerWidth * 0.8, height: baseLayerHeight * 0.9, color1: "#2D7D4A", color2: "#3A8A5A" }, // Upper middle layer
+    { y: y + height - trunkHeight - baseLayerHeight * 2.3, width: baseLayerWidth * 0.7, height: baseLayerHeight * 0.85, color1: "#3A8A5A", color2: "#4A9A6A" }  // Top layer
+  ];
 
-    ctx.beginPath();
-    ctx.moveTo(tree.width * 0.05, branchY);
-    ctx.quadraticCurveTo(
-      tree.width * 0.05 + branchLength * 0.5,
-      branchY - branchLength * 0.3,
-      tree.width * 0.05 + branchLength,
-      branchY + branchLength * 0.2
+  layers.forEach((layer, index) => {
+    // Create gradient for each layer
+    const gradient = ctx.createLinearGradient(
+      x + width / 2 - layer.width / 2, layer.y,
+      x + width / 2 + layer.width / 2, layer.y + layer.height
     );
+    gradient.addColorStop(0, layer.color1);
+    gradient.addColorStop(1, layer.color2);
+
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.moveTo(x + width / 2, layer.y); // Top point
+    ctx.lineTo(x + width / 2 - layer.width / 2, layer.y + layer.height); // Left base
+    ctx.lineTo(x + width / 2 + layer.width / 2, layer.y + layer.height); // Right base
+    ctx.closePath();
+    ctx.fill();
+
+    // Add subtle outline for definition
+    ctx.strokeStyle = layer.color1;
+    ctx.lineWidth = Math.max(0.5 * scale, 0.2);
     ctx.stroke();
 
-    // Small leaves along branch
-    ctx.fillStyle = "#32CD32";
-    for (let j = 0; j < 3; j++) {
-      const leafX = tree.width * 0.05 + branchLength * (0.3 + j * 0.3);
-      const leafY = branchY + branchLength * 0.1 * (j - 1);
+    // Add some small branches/twigs for texture
+    if (index < 2) { // Only on bottom two layers
+      ctx.strokeStyle = layer.color1;
+      ctx.lineWidth = Math.max(1 * scale, 0.5);
+      const branchCount = 2 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < branchCount; i++) {
+        const branchX = x + width / 2 + (Math.random() - 0.5) * layer.width * 0.6;
+        const branchY = layer.y + layer.height * 0.3 + Math.random() * layer.height * 0.4;
+        const branchLength = (3 + Math.random() * 4) * scale;
+
+        ctx.beginPath();
+        ctx.moveTo(branchX, branchY);
+        ctx.lineTo(branchX + (Math.random() - 0.5) * branchLength, branchY + branchLength * 0.7);
+        ctx.stroke();
+      }
+    }
+  });
+
+  // Add a subtle shadow at the base
+  ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+  ctx.beginPath();
+  ctx.ellipse(x + width / 2, y + height + 2 * scale, 12 * scale, 3 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBirchTree(x, y, width, height) {
+  const scale = Math.max(width / 50, height / 200);
+
+  // Draw characteristic white birch trunk with black horizontal lines
+  ctx.fillStyle = "#F5F5DC"; // Beige/white bark
+  ctx.fillRect(x + width / 2 - 4 * scale, y + height - 45 * scale, 8 * scale, 45 * scale);
+
+  // Add characteristic black horizontal lines on birch bark
+  ctx.strokeStyle = "#2F2F2F";
+  ctx.lineWidth = 1 * scale;
+  for (let i = 0; i < 8; i++) {
+    const lineY = y + height - 40 * scale - i * 4 * scale;
+    const lineLength = (3 + Math.sin(i * 0.8) * 2) * scale;
+    ctx.beginPath();
+    ctx.moveTo(x + width / 2 - lineLength, lineY);
+    ctx.lineTo(x + width / 2 + lineLength, lineY);
+    ctx.stroke();
+  }
+
+  // Add vertical texture lines for bark detail
+  ctx.strokeStyle = "#D3D3D3";
+  ctx.lineWidth = 0.8 * scale;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + width / 2 - 2 * scale + i * 2 * scale, y + height - 45 * scale);
+    ctx.lineTo(x + width / 2 - 2 * scale + i * 2 * scale, y + height);
+    ctx.stroke();
+  }
+
+  // Draw multiple layered branches
+  ctx.strokeStyle = "#8B7355"; // Brown branches
+  ctx.lineWidth = 2 * scale;
+  ctx.lineCap = "round";
+
+  // Main branches
+  const branches = [
+    { startX: x + width / 2, startY: y + height - 35 * scale, angle: -0.3, length: 18 * scale },
+    { startX: x + width / 2, startY: y + height - 30 * scale, angle: 0.2, length: 15 * scale },
+    { startX: x + width / 2, startY: y + height - 25 * scale, angle: -0.5, length: 12 * scale },
+    { startX: x + width / 2, startY: y + height - 20 * scale, angle: 0.4, length: 10 * scale }
+  ];
+
+  branches.forEach((branch, index) => {
+    ctx.beginPath();
+    ctx.moveTo(branch.startX, branch.startY);
+    const endX = branch.startX + Math.cos(branch.angle) * branch.length;
+    const endY = branch.startY + Math.sin(branch.angle) * branch.length;
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+
+    // Add smaller sub-branches
+    if (index < 2) {
+      ctx.lineWidth = 1.5 * scale;
       ctx.beginPath();
-      ctx.arc(leafX, leafY, 3, 0, Math.PI * 2);
+      ctx.moveTo(endX, endY);
+      ctx.lineTo(endX + Math.cos(branch.angle - 0.5) * 8 * scale, endY + Math.sin(branch.angle - 0.5) * 8 * scale);
+      ctx.stroke();
+      ctx.lineWidth = 2 * scale;
+    }
+  });
+
+  // Draw layered oval canopy with many small leaves
+  // const canopyLayers = [
+  //   { centerX: x + width / 2, centerY: y + height - 50, width: 24, height: 16, leafCount: 8 },
+  //   { centerX: x + width / 2, centerY: y + height - 58, width: 20, height: 14, leafCount: 6 },
+  //   { centerX: x + width / 2, centerY: y + height - 65, width: 18, height: 12, leafCount: 5 }
+  // ];
+
+  // canopyLayers.forEach((layer, layerIndex) => {
+  //   // Draw individual leaves
+  //   for (let i = 0; i < layer.leafCount; i++) {
+  //     const angle = (i / layer.leafCount) * Math.PI * 2;
+  //     const distance = Math.random() * layer.width * 0.4;
+  //     const leafX = layer.centerX + Math.cos(angle) * distance;
+  //     const leafY = layer.centerY + Math.sin(angle) * distance * 0.6;
+
+  //     // Leaf shape - oval with slight point
+  //     ctx.fillStyle = layerIndex === 0 ? "#90EE90" : layerIndex === 1 ? "#98FB98" : "#A8FBA8";
+  //     ctx.save();
+  //     ctx.translate(leafX, leafY);
+  //     ctx.rotate(angle + Math.PI / 2);
+  //     ctx.beginPath();
+  //     ctx.ellipse(0, 0, 3 + Math.random() * 2, 1.5 + Math.random(), 0, 0, Math.PI * 2);
+  //     ctx.fill();
+
+  //     // Leaf stem
+  //     ctx.strokeStyle = "#228B22";
+  //     ctx.lineWidth = 0.5;
+  //     ctx.beginPath();
+  //     ctx.moveTo(0, 1.5);
+  //     ctx.lineTo(0, 3);
+  //     ctx.stroke();
+  //     ctx.restore();
+  //   }
+  // });
+
+  // Add some hanging catkins (characteristic of birch trees)
+  ctx.strokeStyle = "#DAA520"; // Golden catkins
+  ctx.lineWidth = 1 * scale;
+  for (let i = 0; i < 3; i++) {
+    const catkinX = x + width / 2 + (Math.random() - 0.5) * 15 * scale;
+    const catkinY = y + height - 45 * scale + Math.random() * 10 * scale;
+    const catkinLength = (6 + Math.random() * 4) * scale;
+
+    ctx.beginPath();
+    ctx.moveTo(catkinX, catkinY);
+    ctx.lineTo(catkinX + Math.sin(Date.now() * 0.001 + i) * 2 * scale, catkinY + catkinLength);
+    ctx.stroke();
+
+    // Add small flowers on catkin
+    ctx.fillStyle = "#F0E68C";
+    for (let j = 0; j < 3; j++) {
+      const flowerY = catkinY + j * 2 * scale;
+      ctx.beginPath();
+      ctx.arc(catkinX + Math.sin(Date.now() * 0.001 + i + j) * 1 * scale, flowerY, 0.8 * scale, 0, Math.PI * 2);
       ctx.fill();
     }
   }
+
+  // Add subtle shadow at base
+  ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
+  ctx.beginPath();
+  ctx.ellipse(x + width / 2, y + height + 3 * scale, 10 * scale, 2 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Add some fallen leaves around base
+  for (let i = 0; i < 2; i++) {
+    const leafX = x + width / 2 + (Math.random() - 0.5) * 25 * scale;
+    const leafY = y + height + Math.random() * 5 * scale;
+
+    ctx.fillStyle = "#CD853F";
+    ctx.save();
+    ctx.translate(leafX, leafY);
+    ctx.rotate(Math.random() * Math.PI * 2);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 2 * scale, 1 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
-function drawCypressTree(tree) {
-  const trunkHeight = tree.height * 0.9;
-  const trunkWidth = tree.width * 0.08;
+function drawWillowTree(x, y, width, height) {
+  const scale = Math.max(width / 50, height / 200);
 
-  // Tall, straight trunk
-  ctx.fillStyle = "#654321";
-  ctx.fillRect(-trunkWidth / 2, 0, trunkWidth, trunkHeight);
+  // Draw thin trunk
+  ctx.fillStyle = "#654321"; // Dark brown trunk
+  ctx.fillRect(x + width / 2 - 2 * scale, y + height - 40 * scale, 4 * scale, 40 * scale);
 
-  // Vertical bark lines
-  ctx.strokeStyle = "#4a2c17";
-  ctx.lineWidth = 1;
-  for (let i = 0; i < 3; i++) {
+  // Draw drooping willow branches
+  ctx.strokeStyle = "#228B22"; // Forest green
+  ctx.lineWidth = 3 * scale;
+  ctx.lineCap = "round";
+
+  // Main drooping branches
+  for (let i = 0; i < 5; i++) {
+    const branchY = y + height - 35 * scale - i * 8 * scale;
+    const sway = Math.sin(Date.now() * 0.001 + i) * 2 * scale; // Gentle swaying
+
     ctx.beginPath();
-    ctx.moveTo(-trunkWidth / 4 + (i * trunkWidth) / 4, 0);
-    ctx.lineTo(-trunkWidth / 4 + (i * trunkWidth) / 4, trunkHeight);
+    ctx.moveTo(x + width / 2, branchY);
+    ctx.quadraticCurveTo(
+      x + width / 2 - 15 * scale + sway, branchY + 12 * scale,
+      x + width / 2 - 25 * scale + sway * 2, branchY + 20 * scale
+    );
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(x + width / 2, branchY);
+    ctx.quadraticCurveTo(
+      x + width / 2 + 15 * scale + sway, branchY + 12 * scale,
+      x + width / 2 + 25 * scale + sway * 2, branchY + 20 * scale
+    );
     ctx.stroke();
   }
 
-  // Cypress foliage - conical shape
-  const foliageLayers = 6;
-  for (let i = 0; i < foliageLayers; i++) {
-    const layerY = -trunkHeight * 0.7 + i * (trunkHeight * 0.2);
-    const layerWidth = tree.width * (0.6 - i * 0.08);
-
-    // Dark green base
-    ctx.fillStyle = "#0d5c2a";
-    ctx.beginPath();
-    ctx.moveTo(0, layerY);
-    ctx.lineTo(-layerWidth / 2, layerY + tree.height * 0.15);
-    ctx.lineTo(layerWidth / 2, layerY + tree.height * 0.15);
-    ctx.closePath();
-    ctx.fill();
-
-    // Lighter green tips
-    ctx.fillStyle = "#1e7e34";
-    ctx.beginPath();
-    ctx.moveTo(0, layerY);
-    ctx.lineTo(-layerWidth / 3, layerY + tree.height * 0.1);
-    ctx.lineTo(layerWidth / 3, layerY + tree.height * 0.1);
-    ctx.closePath();
-    ctx.fill();
-  }
-}
-
-function drawMapleTree(tree) {
-  const trunkHeight = tree.height * 0.6;
-  const trunkWidth = tree.width * 0.18;
-
-  // Draw trunk
-  ctx.fillStyle = "#8B4513";
-  ctx.fillRect(-trunkWidth / 2, 0, trunkWidth, trunkHeight);
-
-  // Maple leaves - distinctive star shape
-  const leafCount = 7;
-  for (let i = 0; i < leafCount; i++) {
-    const angle = (i / leafCount) * Math.PI * 2;
-    const distance = tree.width * 0.25;
-    const leafX = Math.cos(angle) * distance;
-    const leafY = -trunkHeight * 0.5 + Math.sin(angle) * tree.height * 0.15;
-
-    // Maple leaf shape
-    ctx.fillStyle = "#DC143C"; // Crimson red
-    ctx.beginPath();
-    ctx.moveTo(leafX, leafY);
-    // Star-like points
-    for (let j = 0; j < 5; j++) {
-      const pointAngle = (j / 5) * Math.PI * 2;
-      const pointDistance = tree.width * 0.08;
-      const pointX = leafX + Math.cos(pointAngle) * pointDistance;
-      const pointY = leafY + Math.sin(pointAngle) * pointDistance;
-      ctx.lineTo(pointX, pointY);
-    }
-    ctx.closePath();
-    ctx.fill();
-
-    // Stem
-    ctx.strokeStyle = "#8B4513";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(leafX, leafY + tree.width * 0.08);
-    ctx.lineTo(leafX, leafY + tree.width * 0.12);
-    ctx.stroke();
-  }
-}
-
-function generateBackgroundTrees(state) {
-  if (!state.backgroundTrees) {
-    state.backgroundTrees = [];
-  }
-
-  const treeTypes = ["pine", "oak", "willow", "cypress", "maple"];
-  const treeCount = 15; // Number of background trees
-
-  for (let i = 0; i < treeCount; i++) {
-    const tree = {
-      x: Math.random() * canvas.width * 2, // Spread across wider area
-      y: state.ground - Math.random() * 100 - 50, // Vary ground level
-      width: 40 + Math.random() * 30, // Vary size
-      height: 80 + Math.random() * 60,
-      depth: Math.random(), // 0-1 for parallax effect
-      type: treeTypes[Math.floor(Math.random() * treeTypes.length)],
-    };
-    state.backgroundTrees.push(tree);
-  }
-}
-
-function updateBackgroundTrees(state) {
-  if (!state.backgroundTrees) return;
-
-  const scrollSpeed = state.gameSpeed || 2;
-
-  state.backgroundTrees.forEach((tree) => {
-    tree.x -= scrollSpeed * (0.5 + tree.depth * 0.5); // Parallax scrolling
-
-    // Wrap around when off screen
-    if (tree.x < -100) {
-      tree.x = canvas.width + Math.random() * canvas.width;
-      tree.y = state.ground - Math.random() * 100 - 50;
-      tree.depth = Math.random();
-    }
-  });
+  // Add some hanging leaves
+  // ctx.fillStyle = "#32CD32"; // Lime green
+  // for (let i = 0; i < 8; i++) {
+  //   const leafX = x + width / 2 + (Math.random() - 0.5) * 40;
+  //   const leafY = y + height - 20 + Math.random() * 25;
+  //   ctx.beginPath();
+  //   ctx.arc(leafX, leafY, 2 + Math.random() * 2, 0, Math.PI * 2);
+  //   ctx.fill();
+  // }
 }
 
 function drawGround(state) {
@@ -1471,7 +1537,7 @@ function drawGround(state) {
 function drawObstacles(state) {
   // Draw each gap as its own pit (no grouping/combining)
   state.gaps.forEach((gap) => {
-    const minX = gap.x;
+    const minX = gap.x + 300;
     const pitWidth = gap.width;
     const pitY = gap.y;
     const pitHeight = gap.height;
@@ -1694,29 +1760,29 @@ function drawObstacles(state) {
     ctx.fillStyle = "#696969";
     ctx.beginPath();
     // Create irregular boulder shape with curves
-    ctx.moveTo(obstacle.x + 5, obstacle.y + obstacle.height);
+    ctx.moveTo(obstacle.x + 300 + 5, obstacle.y + obstacle.height);
     ctx.quadraticCurveTo(
-      obstacle.x,
+      obstacle.x + 300,
       obstacle.y + obstacle.height * 0.7,
-      obstacle.x + 8,
+      obstacle.x + 300 + 8,
       obstacle.y + obstacle.height * 0.4
     );
     ctx.quadraticCurveTo(
-      obstacle.x + obstacle.width * 0.3,
+      obstacle.x + 300 + obstacle.width * 0.3,
       obstacle.y + 5,
-      obstacle.x + obstacle.width * 0.6,
+      obstacle.x + 300 + obstacle.width * 0.6,
       obstacle.y + 8
     );
     ctx.quadraticCurveTo(
-      obstacle.x + obstacle.width - 5,
+      obstacle.x + 300 + obstacle.width - 5,
       obstacle.y + obstacle.height * 0.3,
-      obstacle.x + obstacle.width - 3,
+      obstacle.x + 300 + obstacle.width - 3,
       obstacle.y + obstacle.height * 0.7
     );
     ctx.quadraticCurveTo(
-      obstacle.x + obstacle.width,
+      obstacle.x + 300 + obstacle.width,
       obstacle.y + obstacle.height - 5,
-      obstacle.x + obstacle.width - 8,
+      obstacle.x + 300 + obstacle.width - 8,
       obstacle.y + obstacle.height
     );
     ctx.closePath();
@@ -1725,23 +1791,23 @@ function drawObstacles(state) {
     // Rock texture with irregular highlights
     ctx.fillStyle = "#808080";
     ctx.beginPath();
-    ctx.moveTo(obstacle.x + 12, obstacle.y + obstacle.height * 0.8);
+    ctx.moveTo(obstacle.x + 300 + 12, obstacle.y + obstacle.height * 0.8);
     ctx.quadraticCurveTo(
-      obstacle.x + 8,
+      obstacle.x + 300 + 8,
       obstacle.y + obstacle.height * 0.5,
-      obstacle.x + 15,
+      obstacle.x + 300 + 15,
       obstacle.y + obstacle.height * 0.3
     );
     ctx.quadraticCurveTo(
-      obstacle.x + obstacle.width * 0.4,
+      obstacle.x + 300 + obstacle.width * 0.4,
       obstacle.y + 12,
-      obstacle.x + obstacle.width * 0.7,
+      obstacle.x + 300 + obstacle.width * 0.7,
       obstacle.y + 15
     );
     ctx.quadraticCurveTo(
-      obstacle.x + obstacle.width - 10,
+      obstacle.x + 300 + obstacle.width - 10,
       obstacle.y + obstacle.height * 0.4,
-      obstacle.x + obstacle.width - 12,
+      obstacle.x + 300 + obstacle.width - 12,
       obstacle.y + obstacle.height * 0.8
     );
     ctx.closePath();
@@ -1751,11 +1817,11 @@ function drawObstacles(state) {
     ctx.strokeStyle = "#555555";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(obstacle.x + 10, obstacle.y + obstacle.height * 0.6);
+    ctx.moveTo(obstacle.x + 300 + 10, obstacle.y + obstacle.height * 0.6);
     ctx.quadraticCurveTo(
-      obstacle.x + obstacle.width * 0.3,
+      obstacle.x + 300 + obstacle.width * 0.3,
       obstacle.y + obstacle.height * 0.4,
-      obstacle.x + obstacle.width * 0.5,
+      obstacle.x + 300 + obstacle.width * 0.5,
       obstacle.y + obstacle.height * 0.7
     );
     ctx.stroke();
@@ -1765,7 +1831,7 @@ function drawObstacles(state) {
     // Top moss patch
     ctx.beginPath();
     ctx.arc(
-      obstacle.x + obstacle.width * 0.3,
+      obstacle.x + 300 + obstacle.width * 0.3,
       obstacle.y + obstacle.height * 0.2,
       4,
       0,
@@ -1775,7 +1841,7 @@ function drawObstacles(state) {
     // Bottom moss patch
     ctx.beginPath();
     ctx.arc(
-      obstacle.x + obstacle.width * 0.7,
+      obstacle.x + 300 + obstacle.width * 0.7,
       obstacle.y + obstacle.height * 0.8,
       3,
       0,
@@ -1797,7 +1863,7 @@ function drawObstacles(state) {
     ctx.fillStyle = "#1a0a00";
     ctx.beginPath();
     ctx.ellipse(
-      trap.x + trap.width / 2,
+      trap.x + 300 + trap.width / 2,
       trap.y + trap.height - 3,
       trap.width / 2 - 3,
       6,
@@ -1808,7 +1874,7 @@ function drawObstacles(state) {
     ctx.fill();
 
     // Multiple flame layers - drawing from back to front
-    const centerX = trap.x + trap.width / 2;
+    const centerX = trap.x + 300 + trap.width / 2;
     const baseY = trap.y + trap.height;
 
     // Large background glow
@@ -1988,7 +2054,7 @@ function drawMovingPlatforms(state) {
   if (!state.movingPlatforms) return;
 
   state.movingPlatforms.forEach((platform) => {
-    const px = platform.x;
+    const px = platform.x + 300;
     const py = platform.y;
     const pWidth = platform.width;
     const pHeight = platform.height;
@@ -2028,7 +2094,7 @@ function drawBirds(state) {
   // Draw birds (forest birds)
   if (state.birds) {
     state.birds.forEach((bird) => {
-      const bx = bird.x;
+      const bx = bird.x + 300;
       const by = bird.y;
       const wingFlap = Math.sin(bird.frame * 4) * 3;
 
@@ -2076,7 +2142,7 @@ function drawMonster(state) {
 
   let monster = state.monster;
   let isDeadly = state.hitTimestamps && state.hitTimestamps.length >= 3;
-  const mx = monster.x;
+  const mx = monster.x + 300;
   const my = monster.y;
   const time = Date.now() * 0.001;
   const float = Math.sin(monster.frame + time * 0.5) * 3; // Gentle floating motion
@@ -2128,8 +2194,8 @@ function drawMonster(state) {
     ctx.shadowBlur = 3;
 
     ctx.beginPath();
-    ctx.moveTo(monster.x + monster.width / 2, monster.y + 10);
-    ctx.lineTo(state.player.x + state.player.width / 2, state.player.y + 10);
+    ctx.moveTo(monster.x + 300 + monster.width / 2, monster.y + 10);
+    ctx.lineTo(state.player.x + 300 + state.player.width / 2, state.player.y + 10);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.shadowBlur = 0;
@@ -2622,7 +2688,7 @@ function drawParticles(state) {
     ctx.fillStyle = particle.color;
     ctx.globalAlpha = particle.life / 40; // Fade out as life decreases
     ctx.beginPath();
-    ctx.arc(particle.x, particle.y, 3, 0, Math.PI * 2);
+    ctx.arc(particle.x + 300, particle.y, 3, 0, Math.PI * 2);
     ctx.fill();
   });
 
@@ -2632,14 +2698,8 @@ function drawParticles(state) {
 function drawPlayer(state) {
   if (!state.player) return;
 
-  const px = state.player.x;
+  const px = state.player.x + 300;
   const py = state.player.y;
-
-  // If on rope, draw hanging animation
-  if (state.player.onRope) {
-    drawPlayerOnRope(px, py, state);
-    return;
-  }
 
   const runCycle = Math.sin(state.player.runFrame * 2) * 2; // Slower running cycle
   const armSwing = Math.sin(state.player.runFrame * 1.8) * 8; // Slower arm swing, reduced magnitude
@@ -3091,19 +3151,6 @@ function drawPlayer(state) {
   }
 }
 
-function drawPlayerOnRope(px, py, state) {
-  // Simplified hanging animation
-  ctx.fillStyle = "#FBBF24";
-  ctx.fillRect(px, py, state.player.width, state.player.height);
-  // Add rope
-  ctx.strokeStyle = "#8B4513";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(px + state.player.width / 2, py - 20);
-  ctx.lineTo(px + state.player.width / 2, py);
-  ctx.stroke();
-}
-
 function drawCrouchingPlayer(px, py, state) {
   // Simplified crouching position
   ctx.fillStyle = "#1E3A8A";
@@ -3121,7 +3168,7 @@ function drawPowerUps(state) {
 
   state.powerUps.forEach((powerUp) => {
     const pulsation = 1 + Math.sin(powerUp.frame * 2) * 0.1;
-    const px = powerUp.x + powerUp.width / 2;
+    const px = powerUp.x + powerUp.width / 2 + 300;
     const py = powerUp.y + powerUp.height / 2;
 
     ctx.save();
@@ -3252,7 +3299,7 @@ function drawCoins(state) {
 
   state.coins.forEach((coin) => {
     const rotation = coin.frame * 0.3;
-    const cx = coin.x + coin.width / 2;
+    const cx = coin.x + coin.width / 2 + 300;
     const cy = coin.y + coin.height / 2;
 
     ctx.save();
@@ -3289,157 +3336,6 @@ function drawCoins(state) {
     ctx.font = "bold 10px Arial";
     ctx.textAlign = "center";
     ctx.fillText("$", 0, 3);
-
-    ctx.restore();
-  });
-}
-
-function drawRopes(state) {
-  if (!state.ropes) return;
-
-  state.ropes.forEach((rope) => {
-    const time = Date.now() * 0.001;
-    const swingOffset = Math.sin(rope.swingAngle) * rope.maxSwing * 20;
-    const ropeCenterX = rope.x + rope.width / 2;
-    const ropeTopY = rope.y;
-    const ropeBottomY = rope.y + rope.height;
-
-    ctx.save();
-
-    // Draw wooden posts on both sides
-    const postWidth = 8;
-    const postHeight = rope.height + 20;
-
-    // Left post
-    ctx.fillStyle = "#8B4513"; // Brown wood
-    ctx.fillRect(rope.x - postWidth / 2, rope.y - 10, postWidth, postHeight);
-
-    // Right post
-    ctx.fillRect(
-      rope.x + rope.width - postWidth / 2,
-      rope.y - 10,
-      postWidth,
-      postHeight
-    );
-
-    // Post details - wood grain
-    ctx.strokeStyle = "#654321";
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 3; i++) {
-      // Left post grain
-      ctx.beginPath();
-      ctx.moveTo(rope.x - postWidth / 2 + 2 + i * 2, rope.y - 5);
-      ctx.lineTo(rope.x - postWidth / 2 + 2 + i * 2, rope.y + postHeight - 5);
-      ctx.stroke();
-
-      // Right post grain
-      ctx.beginPath();
-      ctx.moveTo(rope.x + rope.width - postWidth / 2 + 2 + i * 2, rope.y - 5);
-      ctx.lineTo(
-        rope.x + rope.width - postWidth / 2 + 2 + i * 2,
-        rope.y + postHeight - 5
-      );
-      ctx.stroke();
-    }
-
-    // Draw swinging vine ropes
-    ctx.strokeStyle = "#228B22"; // Forest green
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-
-    // Main rope segments with natural sag and swing
-    const segments = 8;
-    const segmentLength = rope.width / segments;
-
-    ctx.beginPath();
-    ctx.moveTo(rope.x, ropeTopY);
-
-    for (let i = 1; i <= segments; i++) {
-      const x = rope.x + i * segmentLength;
-      const baseY = ropeTopY + (ropeBottomY - ropeTopY) * (i / segments);
-      const swingInfluence = Math.sin((i / segments) * Math.PI) * swingOffset;
-      const sag = Math.sin((i / segments) * Math.PI) * 15; // Natural rope sag
-
-      ctx.lineTo(x + swingInfluence, baseY + sag);
-    }
-
-    ctx.stroke();
-
-    // Add rope texture/details
-    ctx.strokeStyle = "#32CD32"; // Lighter green for highlights
-    ctx.lineWidth = 1;
-
-    // Draw smaller vines/twists
-    for (let i = 0; i < 3; i++) {
-      const offset = (i - 1) * 3;
-      ctx.beginPath();
-      ctx.moveTo(rope.x, ropeTopY + offset);
-
-      for (let j = 1; j <= segments; j++) {
-        const x = rope.x + j * segmentLength;
-        const baseY = ropeTopY + (ropeBottomY - ropeTopY) * (j / segments);
-        const swingInfluence = Math.sin((j / segments) * Math.PI) * swingOffset;
-        const sag = Math.sin((j / segments) * Math.PI) * 15;
-
-        ctx.lineTo(x + swingInfluence + offset * 0.5, baseY + sag + offset);
-      }
-
-      ctx.stroke();
-    }
-
-    // Draw foliage/leaves hanging from the rope
-    const leafCount = 6;
-    for (let i = 0; i < leafCount; i++) {
-      const leafX =
-        rope.x + (rope.width / leafCount) * i + Math.random() * 20 - 10;
-      const leafY =
-        ropeTopY +
-        (ropeBottomY - ropeTopY) * (i / leafCount) +
-        Math.random() * 10;
-      const swingInfluence = Math.sin((i / leafCount) * Math.PI) * swingOffset;
-
-      // Leaf stem
-      ctx.strokeStyle = "#228B22";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(leafX + swingInfluence, leafY);
-      ctx.lineTo(leafX + swingInfluence, leafY + 8 + Math.random() * 4);
-      ctx.stroke();
-
-      // Leaf shape
-      ctx.fillStyle = "#32CD32";
-      ctx.beginPath();
-      ctx.ellipse(
-        leafX + swingInfluence,
-        leafY + 6,
-        4 + Math.random() * 2,
-        6 + Math.random() * 3,
-        Math.random() * 0.5,
-        0,
-        Math.PI * 2
-      );
-      ctx.fill();
-    }
-
-    // Draw "HOLD SPACE" instruction when player is near
-    const playerNear =
-      state.player && Math.abs(state.player.x - ropeCenterX) < 100;
-    if (playerNear && !state.player.onRope) {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.strokeStyle = "#000000";
-      ctx.lineWidth = 2;
-      ctx.font = "bold 16px Arial";
-      ctx.textAlign = "center";
-
-      const textY = ropeTopY - 30;
-      const pulse = 1 + Math.sin(time * 3) * 0.2;
-
-      ctx.save();
-      ctx.scale(pulse, pulse);
-      ctx.strokeText("HOLD SPACE", ropeCenterX / pulse, textY / pulse);
-      ctx.fillText("HOLD SPACE", ropeCenterX / pulse, textY / pulse);
-      ctx.restore();
-    }
 
     ctx.restore();
   });
