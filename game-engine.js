@@ -452,48 +452,49 @@ class EndlessRunnerGame {
   }
 
   updatePlayer() {
-        // Rope obstacle: hanging mechanic
-        if (this.player.hanging) {
-          // If player is hanging, move along rope if holding jump (spacebar)
-          if (this.keys[' ']) {
-            this.player.hangProgress += 0.018; // Slide speed
-          } else {
-            // Let go: fall
-            this.player.hanging = false;
-            this.player.velocityY = 2;
-            this.player.jumping = true;
-            this.player.ropeId = null;
-            this.player.ropeExitGrace = 18; // ~0.3s at 60fps
-          }
-          // Clamp progress
-          if (this.player.hangProgress > 1) {
-            this.player.hangProgress = 1;
-            // Finished rope: drop to ground at rope end
-            this.player.hanging = false;
-            this.player.velocityY = 2;
-            this.player.jumping = true;
-            // Place player at rope end
-            const rope = this.obstacles.find(o => o.type === "rope" && o.id === this.player.ropeId);
-            if (rope) {
-              this.player.x = rope.x + rope.width - this.player.width / 2;
+          // Rope obstacle: hanging mechanic
+          if (this.player.hanging) {
+            // If player is hanging, move along rope if holding jump (spacebar)
+            if (this.keys[' ']) {
+              this.player.hangProgress += 0.018; // Slide speed
+            } else {
+              // Let go: fall
+              this.player.hanging = false;
+              this.player.velocityY = 2;
+              this.player.jumping = true;
+              this.player.ropeId = null;
+              this.player.ropeExitGrace = 18; // ~0.3s at 60fps
             }
-            this.player.ropeId = null;
-            this.player.ropeExitGrace = 18; // ~0.3s at 60fps
+            // Clamp progress
+            if (this.player.hangProgress > 1) {
+              this.player.hangProgress = 1;
+              // Finished rope: drop to ground at rope end
+              this.player.hanging = false;
+              this.player.velocityY = 2;
+              this.player.jumping = true;
+              // Place player at rope end
+              const rope = this.obstacles.find(o => o.type === "rope" && o.id === this.player.ropeId);
+              if (rope) {
+                this.player.x = rope.x + rope.width - this.player.width / 2;
+                this.player.y = rope.y + rope.height / 2 - this.player.height / 2;
+              }
+              this.player.ropeId = null;
+              this.player.ropeExitGrace = 18; // ~0.3s at 60fps
               // Decrement rope exit grace period
               if (this.player.ropeExitGrace > 0) {
                 this.player.ropeExitGrace--;
               }
-          } else {
-            // Move player along rope
-            const rope = this.obstacles.find(o => o.type === "rope" && o.id === this.player.ropeId);
-            if (rope) {
-              this.player.x = rope.x + this.player.hangProgress * (rope.width - this.player.width);
-              this.player.y = rope.y + rope.height / 2 - this.player.height / 2;
+            } else {
+              // Move player along rope
+              const rope = this.obstacles.find(o => o.type === "rope" && o.id === this.player.ropeId);
+              if (rope) {
+                this.player.x = rope.x + this.player.hangProgress * (rope.width - this.player.width);
+                this.player.y = rope.y + rope.height / 2 - this.player.height / 2;
+              }
             }
+            // While hanging, ignore gravity and other movement
+            return;
           }
-          // While hanging, ignore gravity and other movement
-          return;
-        }
         // Rope collision: check if player can grab rope
         for (let obs of this.obstacles) {
           if (obs.type === "rope") {
