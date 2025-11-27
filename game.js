@@ -1688,6 +1688,45 @@ function drawGround(state) {
 }
 
 function drawObstacles(state) {
+    // Draw rope obstacles (above water, between two poles)
+    state.obstacles.forEach((obstacle) => {
+      if (obstacle.type === "rope") {
+        const ropeX = obstacle.x + 300;
+        const ropeY = obstacle.y;
+        const ropeW = obstacle.width;
+        const ropeH = obstacle.height;
+        // Draw water below rope (already drawn by gap)
+        // Draw poles from ground up to rope
+        ctx.fillStyle = "#8B5C2A";
+        // Left pole: from ground up to rope
+        ctx.fillRect(ropeX - 8, state.ground, 16, ropeY + ropeH / 2 - state.ground);
+        // Right pole: from ground up to rope
+        ctx.fillRect(ropeX + ropeW - 8, state.ground, 16, ropeY + ropeH / 2 - state.ground);
+        // Draw rope (curved for sag)
+        ctx.strokeStyle = "#C2B280";
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(ropeX, ropeY + ropeH / 2);
+        for (let t = 0; t <= 1.0; t += 0.05) {
+          // Sag curve: quadratic
+          const x = ropeX + t * ropeW;
+          const y = ropeY + ropeH / 2 + Math.sin(Math.PI * t) * 18;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        // Rope highlight
+        ctx.strokeStyle = "#F5E9B9";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(ropeX, ropeY + ropeH / 2 - 2);
+        for (let t = 0; t <= 1.0; t += 0.05) {
+          const x = ropeX + t * ropeW;
+          const y = ropeY + ropeH / 2 + Math.sin(Math.PI * t) * 18 - 2;
+          ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+    });
   // Draw each gap as its own pit (no grouping/combining)
   state.gaps.forEach((gap) => {
     const minX = gap.x + 300;
@@ -2849,6 +2888,65 @@ function drawParticles(state) {
 }
 
 function drawPlayer(state) {
+    // If hanging on rope, draw player in hanging pose
+    if (state.player.hanging) {
+      const rope = state.obstacles && state.obstacles.find(o => o.type === "rope" && o.id === state.player.ropeId);
+      let px = state.player.x + 300;
+      let py;
+      if (rope) {
+        // Always use rope y for hanging pose to avoid jitter
+        py = rope.y + rope.height / 2 - state.player.height / 2;
+      } else {
+        py = state.player.y;
+      }
+      // Draw shadow below
+      ctx.fillStyle = "rgba(0,0,0,0.18)";
+      ctx.beginPath();
+      ctx.ellipse(px + 20, state.ground + 2, 16, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Draw body hanging
+      ctx.save();
+      ctx.translate(px + 20, py + 20);
+      // No swinging/rotation to avoid shaking
+      // Arms up, holding rope
+      ctx.fillStyle = "#FBBF24";
+      ctx.fillRect(-12, -18, 6, 22); // Left arm
+      ctx.fillRect(8, -18, 6, 22); // Right arm
+      // Hands gripping rope
+      ctx.beginPath();
+      ctx.arc(-9, -18, 4, 0, Math.PI * 2);
+      ctx.arc(11, -18, 4, 0, Math.PI * 2);
+      ctx.fill();
+      // Body
+      ctx.fillStyle = "#3B82F6";
+      ctx.fillRect(-10, 4, 20, 32);
+      // Legs hanging
+      ctx.fillStyle = "#1E3A8A";
+      ctx.fillRect(-8, 36, 7, 18);
+      ctx.fillRect(3, 36, 7, 18);
+      // Head
+      ctx.fillStyle = "#FBBF24";
+      ctx.beginPath();
+      ctx.ellipse(0, -8, 11, 13, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Hair
+      ctx.fillStyle = "#92400E";
+      ctx.beginPath();
+      ctx.ellipse(-2, -14, 12, 9, 0, Math.PI * 0.8, Math.PI * 2.2);
+      ctx.fill();
+      ctx.restore();
+      // UI: Show "Hold SPACE to slide across!"
+      ctx.save();
+      ctx.font = "bold 22px Arial";
+      ctx.fillStyle = "#fff";
+      ctx.strokeStyle = "#222";
+      ctx.lineWidth = 4;
+      ctx.textAlign = "center";
+      ctx.strokeText("Hold SPACE to slide across!", px + 20, py - 30);
+      ctx.fillText("Hold SPACE to slide across!", px + 20, py - 30);
+      ctx.restore();
+      return;
+    }
   if (!state.player) return;
 
   const px = state.player.x + 300;

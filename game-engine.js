@@ -66,6 +66,10 @@ class EndlessRunnerGame {
       sliding: false,
       slideTimer: 0,
       runFrame: 0,
+      hanging: false, // New: hanging on rope
+      hangProgress: 0, // 0 (left) to 1 (right) along rope
+      ropeId: null, // Which rope obstacle is being used
+      ropeExitGrace: 0, // Frames of grace after leaving rope
     };
 
     // Game objects arrays
@@ -448,6 +452,74 @@ class EndlessRunnerGame {
   }
 
   updatePlayer() {
+        // Rope obstacle: hanging mechanic
+        if (this.player.hanging) {
+          // If player is hanging, move along rope if holding jump (spacebar)
+          if (this.keys[' ']) {
+            this.player.hangProgress += 0.018; // Slide speed
+          } else {
+            // Let go: fall
+            this.player.hanging = false;
+            this.player.velocityY = 2;
+            this.player.jumping = true;
+            this.player.ropeId = null;
+            this.player.ropeExitGrace = 18; // ~0.3s at 60fps
+          }
+          // Clamp progress
+          if (this.player.hangProgress > 1) {
+            this.player.hangProgress = 1;
+            // Finished rope: drop to ground at rope end
+            this.player.hanging = false;
+            this.player.velocityY = 2;
+            this.player.jumping = true;
+            // Place player at rope end
+            const rope = this.obstacles.find(o => o.type === "rope" && o.id === this.player.ropeId);
+            if (rope) {
+              this.player.x = rope.x + rope.width - this.player.width / 2;
+            }
+            this.player.ropeId = null;
+            this.player.ropeExitGrace = 18; // ~0.3s at 60fps
+              // Decrement rope exit grace period
+              if (this.player.ropeExitGrace > 0) {
+                this.player.ropeExitGrace--;
+              }
+          } else {
+            // Move player along rope
+            const rope = this.obstacles.find(o => o.type === "rope" && o.id === this.player.ropeId);
+            if (rope) {
+              this.player.x = rope.x + this.player.hangProgress * (rope.width - this.player.width);
+              this.player.y = rope.y + rope.height / 2 - this.player.height / 2;
+            }
+          }
+          // While hanging, ignore gravity and other movement
+          return;
+        }
+        // Rope collision: check if player can grab rope
+        for (let obs of this.obstacles) {
+          if (obs.type === "rope") {
+            if (
+              this.player.x + this.player.width > obs.x &&
+              this.player.x < obs.x + obs.width &&
+              this.player.y + this.player.height > obs.y &&
+              this.player.y < obs.y + obs.height + 18 &&
+              this.player.velocityY > 0 &&
+              !this.player.hanging
+            ) {
+              // Snap to rope
+              this.player.hanging = true;
+              this.player.hangProgress = (this.player.x - obs.x) / (obs.width - this.player.width);
+              if (this.player.hangProgress < 0) this.player.hangProgress = 0;
+              if (this.player.hangProgress > 1) this.player.hangProgress = 1;
+              this.player.ropeId = obs.id;
+              // Place player on rope
+              this.player.y = obs.y + obs.height / 2 - this.player.height / 2;
+              this.player.velocityY = 0;
+              this.player.jumping = false;
+              this.player.sliding = false;
+              break;
+            }
+          }
+        }
     // Handle sliding timer
     if (this.player.sliding) {
       this.player.slideTimer--;
@@ -496,6 +568,22 @@ class EndlessRunnerGame {
     // Running animation - slower for more natural movement
     this.player.runFrame += 0.18; // Slower animation frame increment
     if (this.player.runFrame >= 4) this.player.runFrame = 0;
+
+    // Check for falling into gaps (but not if hanging on rope)
+    for (let gap of this.gaps) {
+      if (
+        this.player.x + this.player.width > gap.x &&
+        this.player.x < gap.x + gap.width &&
+        this.player.y + this.player.height >= this.ground
+      ) {
+        if (gap.isRopeGap && this.player.hanging) {
+          continue;
+        }
+        this.gameState = 'gameOver';
+        this.sessionStats.gameResult = 'fell';
+        break;
+      }
+    }
   }
 
   updateObstacles() {
@@ -661,9 +749,19 @@ class EndlessRunnerGame {
     }
 
     // Check obstacle collisions
-    // Check regular obstacles
+    // Never count rope as a hit while hanging, regardless of collision order
     for (let obstacle of this.obstacles) {
+      if (obstacle.type === "rope") {
+        // Only skip rope collision if hanging on this rope, or in grace period after leaving rope
+        if ((this.player.hanging && this.player.ropeId === obstacle.id) || this.player.ropeExitGrace > 0) {
+          continue;
+        }
+      }
       if (this.isColliding(this.player, obstacle)) {
+        if (obstacle.type === "rope") {
+          // If hanging, never count rope as a hit
+          if (this.player.hanging) continue;
+        }
         if (this.invulnerable && this.shieldHits > 0) {
           // Shield active - consume it on hit
           this.shieldHits = 0; // Omit shield immediately
@@ -725,6 +823,12 @@ class EndlessRunnerGame {
   }
 
   handleObstacleHit() {
+
+    // Failsafe: Never count rope as a hit while hanging
+    if (this.player && this.player.hanging && this.player.ropeId !== null) {
+      return;
+    }
+
     // Prevent multiple hits within a short cooldown period
     let currentTime = Date.now();
     if (this.lastHitTime > 0 && currentTime - this.lastHitTime < 1000) {
@@ -1081,8 +1185,8 @@ class EndlessRunnerGame {
       const baseX = 2000;
 
       if (this.score < 50) {
-        // Easier gameplay: Stone most common, then birds, gaps, fire rarest
-        if (obstacleType < 0.45) {
+        // Easier gameplay: Stone most common, then birds, gaps, fire rarest, rare rope
+        if (obstacleType < 0.40) {
           // 45% - Ground obstacles (Rock) - Most common
           const obstacleX = baseX;
           const obstacleWidth = 35;
@@ -1101,7 +1205,7 @@ class EndlessRunnerGame {
             this.markDangerousArea(obstacleX + obstacleWidth / 2, obstacleWidth, "obstacle");
             this.consecutiveDangers = 0;
           }
-        } else if (obstacleType < 0.6) {
+        } else if (obstacleType < 0.55) {
           // 15% - Flying birds (reduced from 25%)
           this.birds.push({
             x: baseX,
@@ -1114,7 +1218,7 @@ class EndlessRunnerGame {
           });
           this.markDangerousArea(baseX + 20, 40, "bird");
           this.consecutiveDangers = 0;
-        } else if (obstacleType < 0.8) {
+        } else if (obstacleType < 0.75) {
           // 20% - Wide gaps (water pits)
           const gapWidth = 350 + Math.random() * 350; // 350–700px wide
           this.gaps.push({
@@ -1124,8 +1228,8 @@ class EndlessRunnerGame {
             height: 60,
           });
           this.markDangerousArea(baseX + gapWidth / 2, gapWidth, "gap");
-        } else {
-          // 20% - Fire traps
+        } else if (obstacleType < 0.92) {
+          // 17% - Fire traps
           const trapX = baseX;
           const trapWidth = 30;
           const wouldOverlapGap = this.gaps.some(
@@ -1143,10 +1247,35 @@ class EndlessRunnerGame {
             });
             this.markDangerousArea(trapX + trapWidth / 2, trapWidth, "fire");
           }
+        } else {
+          // 8% - Rope obstacle (rare at low score)
+          // Place rope over a gap (simulate water below)
+          const ropeX = baseX;
+          const ropeWidth = 220 + Math.random() * 120; // 220-340px
+          const ropeY = this.ground - 160;
+          // Add a gap below rope
+          this.gaps.push({
+            x: ropeX,
+            y: this.ground,
+            width: ropeWidth,
+            height: 60,
+            isRopeGap: true
+          });
+          // Add rope obstacle
+          this.obstacles.push({
+            x: ropeX,
+            y: ropeY,
+            width: ropeWidth,
+            height: 12,
+            type: "rope",
+            poleHeight: 70,
+            id: Date.now() + Math.floor(Math.random()*10000),
+          });
+          this.markDangerousArea(ropeX + ropeWidth / 2, ropeWidth, "rope");
         }
       } else {
-        // Score >= 50: Stone most common, then birds, gaps, fire rarest
-        if (obstacleType < 0.5) {
+        // Score >= 50: Stone most common, then birds, gaps, fire, rope more common
+        if (obstacleType < 0.40) {
           // 50% - Ground obstacles - Most common
           const obstacleX = baseX;
           const obstacleWidth = 35;
@@ -1165,7 +1294,7 @@ class EndlessRunnerGame {
             this.markDangerousArea(obstacleX + obstacleWidth / 2, obstacleWidth, "obstacle");
             this.consecutiveDangers = 0;
           }
-        } else if (obstacleType < 0.68) {
+        } else if (obstacleType < 0.58) {
           // 18% - Flying birds (reduced from 28%)
           this.birds.push({
             x: baseX,
@@ -1178,7 +1307,7 @@ class EndlessRunnerGame {
           });
           this.markDangerousArea(baseX + 20, 40, "bird");
           this.consecutiveDangers = 0;
-        } else if (obstacleType < 0.82) {
+        } else if (obstacleType < 0.76) {
           // 14% - Wider gaps at higher difficulty
           const gapWidth = 220 + Math.random() * 260; // 220–480px wide
           this.gaps.push({
@@ -1188,8 +1317,8 @@ class EndlessRunnerGame {
             height: 60,
           });
           this.markDangerousArea(baseX + gapWidth / 2, gapWidth, "gap");
-        } else {
-          // 18% - Fire traps
+        } else if (obstacleType < 0.92) {
+          // 16% - Fire traps
           const trapX = baseX;
           const trapWidth = 30;
           const wouldOverlapGap = this.gaps.some(
@@ -1207,6 +1336,28 @@ class EndlessRunnerGame {
             });
             this.markDangerousArea(trapX + trapWidth / 2, trapWidth, "fire");
           }
+        } else {
+          // 8% - Rope obstacle (more common at higher score)
+          const ropeX = baseX;
+          const ropeWidth = 220 + Math.random() * 180; // 220-400px
+          const ropeY = this.ground - 160;
+          this.gaps.push({
+            x: ropeX,
+            y: this.ground,
+            width: ropeWidth,
+            height: 60,
+            isRopeGap: true
+          });
+          this.obstacles.push({
+            x: ropeX,
+            y: ropeY,
+            width: ropeWidth,
+            height: 12,
+            type: "rope",
+            poleHeight: 70,
+            id: Date.now() + Math.floor(Math.random()*10000),
+          });
+          this.markDangerousArea(ropeX + ropeWidth / 2, ropeWidth, "rope");
         }
       }
 
