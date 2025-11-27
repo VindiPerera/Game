@@ -6,6 +6,22 @@
      <title>Endless Runner Game</title>
      <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
      <script src="/socket.io/socket.io.js"></script>
+     <style>
+          .heart {
+               color: #ff0000;
+               font-size: 20px;
+               margin: 0 2px;
+          }
+          .heart.filled {
+               color: #ff0000;
+          }
+          .heart.hollow {
+               color: #ff0000;
+               text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+               background-color: white;
+               -webkit-text-stroke: 1px #ff0000;
+          }
+     </style>
 </head>
 
 <body class="bg-gradient-to-b from-sky-300 to-green-300 min-h-screen overflow-hidden">
@@ -28,16 +44,18 @@
                               class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"></button>
                     </div>
                     <div class="text-sm mt-2">
-                         <div>Obstacle Hits: <span id="obstacleHits">0</span>/3</div>
+                         <div><span id="obstacleHits">
+                              <span class="heart filled">♥</span>
+                              <span class="heart filled">♥</span>
+                              <span class="heart filled">♥</span>
+                         </span></div>
                          <div id="slowdownIndicator" class="text-red-400 hidden">SLOWED DOWN!</div>
                          <div id="doubleJumpIndicator" class="text-blue-400 hidden">DOUBLE JUMP READY!</div>
                          <div id="slidingIndicator" class="text-purple-400 hidden">SLIDING!</div>
                          <div id="shieldIndicator" class="text-blue-300 hidden">SHIELD ACTIVE!</div>
                          <div id="magnetIndicator" class="text-yellow-300 hidden">COIN MAGNET!</div>
                          <div id="speedIndicator" class="text-orange-300 hidden">SPEED BOOST!</div>
-                         <div id="doubleJumpBoostIndicator" class="text-cyan-300 hidden">MULTI JUMP!</div>
                          <div id="scoreMultiplierIndicator" class="text-pink-300 hidden">SCORE 2X!</div>
-                         <div id="slowMotionIndicator" class="text-indigo-300 hidden">SLOW MOTION!</div>
                     </div>
                </div>
           </div>
