@@ -2891,12 +2891,13 @@ function drawPlayer(state) {
     // If hanging on rope, draw player in hanging pose
     if (state.player.hanging) {
       const rope = state.obstacles && state.obstacles.find(o => o.type === "rope" && o.id === state.player.ropeId);
-      let px = state.player.x + 300;
-      let py;
+      let px, py;
       if (rope) {
-        // Always use rope y for hanging pose to avoid jitter
+        // Always use rope x/y for hanging pose to avoid jitter
+        px = rope.x + (state.player.hangProgress || 0) * (rope.width - state.player.width) + 300;
         py = rope.y + rope.height / 2 - state.player.height / 2;
       } else {
+        px = state.player.x + 300;
         py = state.player.y;
       }
       // Draw shadow below
