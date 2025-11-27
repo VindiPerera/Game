@@ -39,8 +39,7 @@
 
     <body class="bg-gradient-to-b from-sky-300 to-green-300 min-h-screen overflow-hidden"
     data-user="<%- JSON.stringify(user || {}).replace(/"/g, '&quot;') %>">
-    <!-- Back to Menu Link -->
-    <a href="/" class="back-link" id="backLink">← Back to Menu</a>
+
 
     <!-- Game Container -->
     <div id="gameContainer" class="relative w-full h-screen">
@@ -89,8 +88,7 @@
                         class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-bold">
                         Play Again
                     </button>
-                    <a href="/"
-                        class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-bold inline-block text-center">
+                    <a href="/" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-bold inline-block text-center">
                         Back to Menu
                     </a>
                 </div>
@@ -146,9 +144,10 @@
         </div>
 
         <!-- Game Canvas -->
-        <canvas id="gameCanvas" class="absolute inset-0 w-full h-full"></canvas>
+        <canvas id="gameCanvas" class="absolute inset-0"></canvas>
     </div>
 
+    <script src="/game.js"></script>
     <script type="text/javascript">
         // Pass user data to client-side JavaScript
         try {
@@ -183,13 +182,14 @@
         }
 
         // Socket.IO connection for active users tracking
-        const socket = io();
+        // socket is declared in game.js
 
         // Join the game when page loads
         socket.emit('join-game', {
             id: window.gameUser.id,
             username: window.gameUser.username || window.gameUser.guestId,
-            isGuest: window.gameUser.isGuest
+            isGuest: window.gameUser.isGuest,
+            height: window.innerHeight
         });
 
         // Listen for active users updates
@@ -198,7 +198,6 @@
             // You can update UI here if needed
         });
     </script>
-    <script src="/game.js"></script>
 </body>
 
 </html>

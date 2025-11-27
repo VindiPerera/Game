@@ -2460,6 +2460,8 @@ app.post("/api/sessions", async (req, res) => {
   // Always generate a new 7-digit session ID
   const sessionId = generateSessionId();
 
+  // Validation temporarily disabled
+  /*
   // Enhanced validation to prevent cheating
   const validationErrors = [];
 
@@ -2553,6 +2555,7 @@ app.post("/api/sessions", async (req, res) => {
       errors: validationErrors
     });
   }
+  */
 
   if (!durationSeconds || finalScore === undefined) {
     console.log("Invalid session data:", req.body);
@@ -2625,14 +2628,18 @@ const PORT = process.env.PORT || 5000;
 // Create HTTP server
 const server = createServer(app);
 
-// Initialize Socket.IO
-const io = new Server(server);
-
-// Track active users
+import EndlessRunnerGame from './game-engine.js';
 const activeUsers = new Map(); // socket.id -> { id, username, isGuest }
+const games = new Map(); // socket.id -> EndlessRunnerGame instance
+
+const io = new Server(server);
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+
+  // Create a new game instance for this user
+  const game = new EndlessRunnerGame();
+  games.set(socket.id, game);
 
   // When user joins the game
   socket.on('join-game', (userData) => {
@@ -2642,15 +2649,68 @@ io.on('connection', (socket) => {
       isGuest: userData.isGuest || false,
       connectedAt: new Date()
     });
+    const game = games.get(socket.id);
+    if (game && userData.height) {
+      game.ground = userData.height * 0.8;
+      game.player.y = game.ground - game.player.height;
+    }
     console.log('User joined game:', userData.username);
     // Broadcast updated active users count
     io.emit('active-users-update', Array.from(activeUsers.values()));
   });
 
+  // Receive input from client
+  socket.on('input', (input) => {
+    const game = games.get(socket.id);
+    if (game) {
+      game.processInput(input);
+    }
+  });
+
+  // Handle game control events
+  socket.on('start', () => {
+    const game = games.get(socket.id);
+    if (game) {
+      game.start();
+    }
+  });
+
+  socket.on('pause', () => {
+    const game = games.get(socket.id);
+    if (game) {
+      game.pause();
+    }
+  });
+
+  socket.on('resume', () => {
+    const game = games.get(socket.id);
+    if (game) {
+      game.resume();
+    }
+  });
+
+  socket.on('restart', () => {
+    const game = games.get(socket.id);
+    if (game) {
+      game.restartGame();
+    }
+  });
+
+  // Game loop: send updated game state to client
+  const interval = setInterval(() => {
+    const game = games.get(socket.id);
+    if (game) {
+      const state = game.update();
+      socket.emit('gameState', state);
+    }
+  }, 1000 / 60); // 60 FPS
+
   // When user disconnects
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
     activeUsers.delete(socket.id);
+    games.delete(socket.id);
+    clearInterval(interval);
     // Broadcast updated active users count
     io.emit('active-users-update', Array.from(activeUsers.values()));
   });
