@@ -43,7 +43,7 @@ class EndlessRunnerGame {
     };
 
     // Game world constants
-    this.ground = options.ground || 600; // Ground height from client window
+    this.ground = options.ground || 500; // Ground height from client window
     this.canvas = { width: 1200, height: 600 }; // Canvas approximation for server-side
 
     // Ground details arrays
@@ -66,9 +66,10 @@ class EndlessRunnerGame {
       sliding: false,
       slideTimer: 0,
       runFrame: 0,
-      onRope: false,
-      ropeSwing: 0,
-      ropeCrossing: null,
+      hanging: false, // New: hanging on rope
+      hangProgress: 0, // 0 (left) to 1 (right) along rope
+      ropeId: null, // Which rope obstacle is being used
+      ropeExitGrace: 0, // Frames of grace after leaving rope
     };
 
     // Game objects arrays
@@ -82,11 +83,9 @@ class EndlessRunnerGame {
     this.fireTraps = [];
     this.monster = null;
     this.clouds = [];
-    this.backgroundTrees = [];
+    this.trees = [];
     this.particles = [];
     this.dangerousAreas = [];
-    this.pendulums = [];
-    this.ropes = [];
 
     // Timers for spawning
     this.obstacleTimer = 0;
@@ -95,12 +94,12 @@ class EndlessRunnerGame {
     this.platformTimer = 0;
     this.ballTimer = 0;
     this.cloudTimer = 0;
+    this.treeTimer = 0;
     this.gapTimer = 0;
     this.coinTimer = 0;
     this.powerUpTimer = 0;
     this.treeTimer = 0;
     this.fireTimer = 0;
-    this.pendulumTimer = 0;
     this.collectibleTimer = 0;
 
     // Power-up states
@@ -111,12 +110,8 @@ class EndlessRunnerGame {
     this.magnetTimer = 0;
     this.speedBoost = false;
     this.speedBoostTimer = 0;
-    this.doubleJumpBoost = false;
-    this.doubleJumpBoostTimer = 0;
     this.scoreMultiplier = false;
     this.scoreMultiplierTimer = 0;
-    this.slowMotion = false;
-    this.slowMotionTimer = 0;
 
     // Input state
     this.keys = {};
@@ -286,9 +281,6 @@ class EndlessRunnerGame {
       sliding: false,
       slideTimer: 0,
       runFrame: 0,
-      onRope: false,
-      ropeSwing: 0,
-      ropeCrossing: null,
     };
 
     // Clear all game objects
@@ -302,11 +294,9 @@ class EndlessRunnerGame {
     this.fireTraps = [];
     this.monster = null;
     this.clouds = [];
-    this.backgroundTrees = [];
+    this.trees = [];
     this.particles = [];
     this.dangerousAreas = [];
-    this.pendulums = [];
-    this.ropes = [];
     this.obstacleTimer = 0;
     this.birdTimer = 0;
     this.spikeTimer = 0;
@@ -318,7 +308,6 @@ class EndlessRunnerGame {
     this.powerUpTimer = 0;
     this.treeTimer = 0;
     this.fireTimer = 0;
-    this.pendulumTimer = 0;
     this.collectibleTimer = 0;
 
     // Reset power-ups
@@ -329,12 +318,8 @@ class EndlessRunnerGame {
     this.magnetTimer = 0;
     this.speedBoost = false;
     this.speedBoostTimer = 0;
-    this.doubleJumpBoost = false;
-    this.doubleJumpBoostTimer = 0;
     this.scoreMultiplier = false;
     this.scoreMultiplierTimer = 0;
-    this.slowMotion = false;
-    this.slowMotionTimer = 0;
 
     this.keys = {};
   }
@@ -416,12 +401,8 @@ class EndlessRunnerGame {
       magnetTimer: this.magnetTimer,
       speedBoost: this.speedBoost,
       speedBoostTimer: this.speedBoostTimer,
-      doubleJumpBoost: this.doubleJumpBoost,
-      doubleJumpBoostTimer: this.doubleJumpBoostTimer,
       scoreMultiplier: this.scoreMultiplier,
       scoreMultiplierTimer: this.scoreMultiplierTimer,
-      slowMotion: this.slowMotion,
-      slowMotionTimer: this.slowMotionTimer,
       hitFlash: this.hitFlash,
       sessionStats: this.sessionStats
     };
@@ -471,36 +452,75 @@ class EndlessRunnerGame {
   }
 
   updatePlayer() {
-    // Handle rope crossing
-    if (this.player.onRope && this.player.ropeCrossing) {
-      // Check if space is still being held
-      if (this.keys["Space"]) {
-        // Player is holding on to rope - move forward along rope
-        this.player.ropeSwing += 0.05; // Swing animation
-        // Rope pulls player forward slightly
-        // Player stays at rope height with slight swinging motion
-        this.player.y =
-          this.player.ropeCrossing.y + Math.sin(this.player.ropeSwing) * 10;
-
-        // Check if player has crossed the rope
-        if (
-          this.player.x >
-          this.player.ropeCrossing.x + this.player.ropeCrossing.width
-        ) {
-          // Successfully crossed!
-          this.player.onRope = false;
-          this.player.ropeCrossing = null;
-          this.player.jumping = true; // Start falling after rope
+          // Rope obstacle: hanging mechanic
+          if (this.player.hanging) {
+            // If player is hanging, move along rope if holding jump (spacebar)
+            if (this.keys[' ']) {
+              this.player.hangProgress += 0.018; // Slide speed
+            } else {
+              // Let go: fall
+              this.player.hanging = false;
+              this.player.velocityY = 2;
+              this.player.jumping = true;
+              this.player.ropeId = null;
+              this.player.ropeExitGrace = 18; // ~0.3s at 60fps
+            }
+            // Clamp progress
+            if (this.player.hangProgress > 1) {
+              this.player.hangProgress = 1;
+              // Finished rope: drop to ground at rope end
+              this.player.hanging = false;
+              this.player.velocityY = 2;
+              this.player.jumping = true;
+              // Place player at rope end
+              const rope = this.obstacles.find(o => o.type === "rope" && o.id === this.player.ropeId);
+              if (rope) {
+                this.player.x = rope.x + rope.width - this.player.width / 2;
+                this.player.y = rope.y + rope.height / 2 - this.player.height / 2;
+              }
+              this.player.ropeId = null;
+              this.player.ropeExitGrace = 18; // ~0.3s at 60fps
+              // Decrement rope exit grace period
+              if (this.player.ropeExitGrace > 0) {
+                this.player.ropeExitGrace--;
+              }
+            } else {
+              // Move player along rope
+              const rope = this.obstacles.find(o => o.type === "rope" && o.id === this.player.ropeId);
+              if (rope) {
+                this.player.x = rope.x + this.player.hangProgress * (rope.width - this.player.width);
+                this.player.y = rope.y + rope.height / 2 - this.player.height / 2;
+              }
+            }
+            // While hanging, ignore gravity and other movement
+            return;
+          }
+        // Rope collision: check if player can grab rope
+        for (let obs of this.obstacles) {
+          if (obs.type === "rope") {
+            if (
+              this.player.x + this.player.width > obs.x &&
+              this.player.x < obs.x + obs.width &&
+              this.player.y + this.player.height > obs.y &&
+              this.player.y < obs.y + obs.height + 18 &&
+              this.player.velocityY > 0 &&
+              !this.player.hanging
+            ) {
+              // Snap to rope
+              this.player.hanging = true;
+              this.player.hangProgress = (this.player.x - obs.x) / (obs.width - this.player.width);
+              if (this.player.hangProgress < 0) this.player.hangProgress = 0;
+              if (this.player.hangProgress > 1) this.player.hangProgress = 1;
+              this.player.ropeId = obs.id;
+              // Place player on rope
+              this.player.y = obs.y + obs.height / 2 - this.player.height / 2;
+              this.player.velocityY = 0;
+              this.player.jumping = false;
+              this.player.sliding = false;
+              break;
+            }
+          }
         }
-      } else {
-        // Player let go of space - fall!
-        this.player.onRope = false;
-        this.player.ropeCrossing = null;
-        this.player.jumping = true;
-        this.player.velocityY = 2; // Start falling
-      }
-    }
-
     // Handle sliding timer
     if (this.player.sliding) {
       this.player.slideTimer--;
@@ -549,13 +569,29 @@ class EndlessRunnerGame {
     // Running animation - slower for more natural movement
     this.player.runFrame += 0.18; // Slower animation frame increment
     if (this.player.runFrame >= 4) this.player.runFrame = 0;
+
+    // Check for falling into gaps (but not if hanging on rope)
+    for (let gap of this.gaps) {
+      if (
+        this.player.x + this.player.width > gap.x &&
+        this.player.x < gap.x + gap.width &&
+        this.player.y + this.player.height >= this.ground
+      ) {
+        if (gap.isRopeGap && this.player.hanging) {
+          continue;
+        }
+        this.gameState = 'gameOver';
+        this.sessionStats.gameResult = 'fell';
+        break;
+      }
+    }
   }
 
   updateObstacles() {
     // Update obstacles
     this.obstacles = this.obstacles.filter((obstacle) => {
       obstacle.x -= this.gameSpeed;
-      return obstacle.x + obstacle.width > 0;
+      return obstacle.x + obstacle.width > -300;
     });
 
     // Update birds
@@ -565,7 +601,7 @@ class EndlessRunnerGame {
       if (bird.frame >= 4) bird.frame = 0;
       const time = Date.now() * 0.003;
       bird.y = bird.initialY + Math.sin(time + bird.waveOffset) * 15;
-      return bird.x + bird.width > 0;
+      return bird.x + bird.width > -300;
     });
 
     // Update fire traps
@@ -580,7 +616,7 @@ class EndlessRunnerGame {
         trap.frame += 0.5;
         if (trap.frame >= 8) trap.frame = 0;
       }
-      return trap.x + trap.width > 0;
+      return trap.x + trap.width > -300;
     });
 
     // Update moving platforms
@@ -595,38 +631,18 @@ class EndlessRunnerGame {
         // Keep within bounds
         platform.y = Math.max(minY, Math.min(maxY, platform.y));
       }
-      return platform.x + platform.width > 0;
+      return platform.x + platform.width > -300;
     });
 
     // Update gaps
     this.gaps = this.gaps.filter((gap) => {
       gap.x -= this.gameSpeed;
-      return gap.x + gap.width > 0;
+      return gap.x + gap.width > -300;
     });
 
     // Update dangerous areas
     this.dangerousAreas = this.dangerousAreas.filter((area) => {
-      return area.x + area.width > -100;
-    });
-
-    // Update pendulums
-    this.pendulums = this.pendulums.filter((pendulum) => {
-      pendulum.x -= this.gameSpeed;
-      pendulum.angle += pendulum.speed * pendulum.direction;
-      if (Math.abs(pendulum.angle) >= pendulum.maxAngle) {
-        pendulum.direction *= -1;
-      }
-      return pendulum.x + pendulum.length + pendulum.axeWidth > 0;
-    });
-
-    // Update ropes
-    this.ropes = this.ropes.filter((rope) => {
-      rope.x -= this.gameSpeed;
-      rope.swingAngle += rope.swingSpeed;
-      if (Math.abs(Math.sin(rope.swingAngle)) >= rope.maxSwing) {
-        rope.swingSpeed *= -1;
-      }
-      return rope.x + rope.width > 0;
+      return area.x + area.width > -400;
     });
 
     // Update particles
@@ -667,7 +683,7 @@ class EndlessRunnerGame {
       
       coin.frame += 0.3;
       if (coin.frame >= 8) coin.frame = 0;
-      return coin.x + coin.width > 0 && !coin.collected;
+      return coin.x + coin.width > -300 && !coin.collected;
     });
 
     // Update power-ups
@@ -675,7 +691,7 @@ class EndlessRunnerGame {
       powerUp.x -= this.gameSpeed;
       powerUp.frame += 0.2;
       if (powerUp.frame >= 4) powerUp.frame = 0;
-      return powerUp.x + powerUp.width > 0 && !powerUp.collected;
+      return powerUp.x + powerUp.width > -300 && !powerUp.collected;
     });
   }
 
@@ -700,23 +716,10 @@ class EndlessRunnerGame {
         this.gameSpeed = this.baseGameSpeed;
       }
     }
-    if (this.doubleJumpBoostTimer > 0) {
-      this.doubleJumpBoostTimer--;
-      if (this.doubleJumpBoostTimer === 0) {
-        this.doubleJumpBoost = false;
-      }
-    }
     if (this.scoreMultiplierTimer > 0) {
       this.scoreMultiplierTimer--;
       if (this.scoreMultiplierTimer === 0) {
         this.scoreMultiplier = false;
-      }
-    }
-    if (this.slowMotionTimer > 0) {
-      this.slowMotionTimer--;
-      if (this.slowMotionTimer === 0) {
-        this.slowMotion = false;
-        this.gameSpeed = this.baseGameSpeed;
       }
     }
   }
@@ -747,16 +750,24 @@ class EndlessRunnerGame {
     }
 
     // Check obstacle collisions
-    // Check regular obstacles
+    // Never count rope as a hit while hanging, regardless of collision order
     for (let obstacle of this.obstacles) {
+      if (obstacle.type === "rope") {
+        // Only skip rope collision if hanging on this rope, or in grace period after leaving rope
+        if ((this.player.hanging && this.player.ropeId === obstacle.id) || this.player.ropeExitGrace > 0) {
+          continue;
+        }
+      }
       if (this.isColliding(this.player, obstacle)) {
+        if (obstacle.type === "rope") {
+          // If hanging, never count rope as a hit
+          if (this.player.hanging) continue;
+        }
         if (this.invulnerable && this.shieldHits > 0) {
           // Shield active - consume it on hit
-          this.shieldHits--;
-          if (this.shieldHits <= 0) {
-            this.invulnerable = false;
-            this.invulnerableTimer = 0;
-          }
+          this.shieldHits = 0; // Omit shield immediately
+          this.invulnerable = false;
+          this.invulnerableTimer = 0;
           // Show shield break effect
           this.showShieldBreakEffect();
         } else if (!this.invulnerable) {
@@ -771,11 +782,9 @@ class EndlessRunnerGame {
       if (this.isColliding(this.player, bird)) {
         if (this.invulnerable && this.shieldHits > 0) {
           // Shield active - consume it on hit
-          this.shieldHits--;
-          if (this.shieldHits <= 0) {
-            this.invulnerable = false;
-            this.invulnerableTimer = 0;
-          }
+          this.shieldHits = 0; // Omit shield immediately
+          this.invulnerable = false;
+          this.invulnerableTimer = 0;
           // Show shield break effect
           this.showShieldBreakEffect();
         } else if (!this.invulnerable) {
@@ -787,14 +796,12 @@ class EndlessRunnerGame {
 
     // Check fire traps
     for (let trap of this.fireTraps) {
-      if (trap.active && this.isColliding(this.player, trap)) {
+      if (this.isColliding(this.player, trap)) {
         if (this.invulnerable && this.shieldHits > 0) {
           // Shield active - consume it on hit
-          this.shieldHits--;
-          if (this.shieldHits <= 0) {
-            this.invulnerable = false;
-            this.invulnerableTimer = 0;
-          }
+          this.shieldHits = 0; // Omit shield immediately
+          this.invulnerable = false;
+          this.invulnerableTimer = 0;
           // Show shield break effect
           this.showShieldBreakEffect();
         } else if (!this.invulnerable) {
@@ -804,17 +811,6 @@ class EndlessRunnerGame {
       }
     }
 
-
-    // Check rope collisions
-    for (let rope of this.ropes) {
-      if (!this.player.onRope && this.isColliding(this.player, rope)) {
-        this.player.onRope = true;
-        this.player.ropeCrossing = rope;
-        this.player.jumping = false;
-        this.player.velocityY = 0;
-        this.player.ropeSwing = 0;
-      }
-    }
 
     // Check gap collisions (falling)
     for (let gap of this.gaps) {
@@ -828,6 +824,12 @@ class EndlessRunnerGame {
   }
 
   handleObstacleHit() {
+
+    // Failsafe: Never count rope as a hit while hanging
+    if (this.player && this.player.hanging && this.player.ropeId !== null) {
+      return;
+    }
+
     // Prevent multiple hits within a short cooldown period
     let currentTime = Date.now();
     if (this.lastHitTime > 0 && currentTime - this.lastHitTime < 1000) {
@@ -1045,9 +1047,6 @@ class EndlessRunnerGame {
     this.fireTraps = [];
     this.monster = null;
     this.particles = [];
-    this.pendulums = [];
-    this.backgroundTrees = [];
-    this.ropes = []; // Reset ropes
     this.grassBlades = [];
     this.dirtParticles = [];
     this.fallenLeaves = [];
@@ -1059,9 +1058,6 @@ class EndlessRunnerGame {
     this.player.doubleJumpUsed = false;
     this.player.sliding = false;
     this.player.slideTimer = 0;
-    this.player.onRope = false; // Reset rope state
-    this.player.ropeSwing = 0;
-    this.player.ropeCrossing = null;
     this.obstacleTimer = 0;
     this.birdTimer = 0;
     this.spikeTimer = 0;
@@ -1072,7 +1068,6 @@ class EndlessRunnerGame {
     this.powerUpTimer = 0;
     this.treeTimer = 0;
     this.fireTimer = 0;
-    this.pendulumTimer = 0;
     this.collectibleTimer = 0;
     this.invulnerable = false;
     this.invulnerableTimer = 0;
@@ -1081,14 +1076,10 @@ class EndlessRunnerGame {
     this.magnetTimer = 0;
     this.speedBoost = false;
     this.speedBoostTimer = 0;
-    this.doubleJumpBoost = false;
-    this.doubleJumpBoostTimer = 0;
     this.scoreMultiplier = false;
     this.scoreMultiplierTimer = 0;
-    this.slowMotion = false;
-    this.slowMotionTimer = 0;
     this.generateClouds();
-    this.generateBackgroundTrees();
+    this.generateTrees();
     this.spawnMonster(); // Spawn the single monster
     this.startBackgroundMusic(); // Restart background music
     this.startSession(); // Start new session
@@ -1101,33 +1092,36 @@ class EndlessRunnerGame {
   generateClouds() {
     // Generate initial clouds
     this.clouds = [];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 10; i++) {
+      const radius = 15 + Math.random() * 25;
       this.clouds.push({
         x: Math.random() * 1200,
-        y: 50 + Math.random() * 150,
-        radius: 20 + Math.random() * 30,
-        speed: this.gameSpeed * 0.5 + Math.random() * 0.5, // Variable speed based on game speed
-        width: 60 + Math.random() * 40, // Cloud width for wrapping logic
+        y: 30 + Math.random() * 120,
+        radius: radius,
+        speed: this.gameSpeed * 0.4 + Math.random() * 0.3, // Variable speed based on game speed
+        width: 50 + Math.random() * 30, // Cloud width for wrapping logic
+        height: radius * 0.6, // Cloud height for drawing
       });
     }
   }
 
-  generateBackgroundTrees() {
-    // Generate initial background trees with proper properties for client-side rendering
-    this.backgroundTrees = [];
-    const treeTypes = ['pine', 'oak', 'willow', 'cypress', 'maple'];
-    const treeCount = 15; // Number of background trees
-
-    for (let i = 0; i < treeCount; i++) {
-      const tree = {
-        x: Math.random() * this.ground * 2, // Spread across wider area (using ground as canvas width approximation)
-        y: this.ground - Math.random() * 100 - 50, // Vary ground level
-        width: 40 + Math.random() * 30, // Vary size
-        height: 80 + Math.random() * 60,
-        depth: Math.random(), // 0-1 for parallax effect
-        type: treeTypes[Math.floor(Math.random() * treeTypes.length)]
-      };
-      this.backgroundTrees.push(tree);
+  generateTrees() {
+    // Generate initial background trees
+    this.trees = [];
+    for (let i = 0; i < 8; i++) {
+      const height = 80 + Math.random() * 120;
+      const treeType = Math.floor(Math.random() * 4); // 4 different tree types now
+      // Add size variation: small, medium, large
+      const sizeMultiplier = Math.random() < 0.3 ? 0.7 : Math.random() < 0.7 ? 1.0 : 1.4; // 30% small, 40% medium, 30% large
+      this.trees.push({
+        x: Math.random() * 1200,
+        y: this.ground - height * sizeMultiplier,
+        width: (20 + Math.random() * 30) * sizeMultiplier,
+        height: height * sizeMultiplier,
+        speed: this.gameSpeed * 0.3 + Math.random() * 0.2, // Slower than clouds for parallax
+        type: treeType, // Different tree types: 0=Oak, 1=Pine, 2=Birch, 3=Willow
+        sizeMultiplier: sizeMultiplier // Store for drawing functions
+      });
     }
   }
 
@@ -1189,11 +1183,11 @@ class EndlessRunnerGame {
     if (this.obstacleTimer <= 0) {
       // Randomly choose obstacle type based on score
       const obstacleType = Math.random();
-      const baseX = 1200;
+      const baseX = 2000;
 
       if (this.score < 50) {
-        // Easier gameplay: Stone most common, then birds, gaps, fire rarest
-        if (obstacleType < 0.45) {
+        // Easier gameplay: Stone most common, then birds, gaps, fire rarest, rare rope
+        if (obstacleType < 0.40) {
           // 45% - Ground obstacles (Rock) - Most common
           const obstacleX = baseX;
           const obstacleWidth = 35;
@@ -1212,7 +1206,7 @@ class EndlessRunnerGame {
             this.markDangerousArea(obstacleX + obstacleWidth / 2, obstacleWidth, "obstacle");
             this.consecutiveDangers = 0;
           }
-        } else if (obstacleType < 0.6) {
+        } else if (obstacleType < 0.55) {
           // 15% - Flying birds (reduced from 25%)
           this.birds.push({
             x: baseX,
@@ -1225,7 +1219,7 @@ class EndlessRunnerGame {
           });
           this.markDangerousArea(baseX + 20, 40, "bird");
           this.consecutiveDangers = 0;
-        } else if (obstacleType < 0.8) {
+        } else if (obstacleType < 0.75) {
           // 20% - Wide gaps (water pits)
           const gapWidth = 350 + Math.random() * 350; // 350–700px wide
           this.gaps.push({
@@ -1235,19 +1229,8 @@ class EndlessRunnerGame {
             height: 60,
           });
           this.markDangerousArea(baseX + gapWidth / 2, gapWidth, "gap");
-        } else if (obstacleType < 0.85) {
-          // 10% - Rope crossing
-          this.ropes.push({
-            x: baseX,
-            y: this.ground - 100,
-            width: 20,
-            height: 100,
-            swingAngle: 0,
-            swingSpeed: 0.05,
-            maxSwing: 0.3,
-          });
-        } else if (obstacleType < 0.95) {
-          // 10% - Fire traps
+        } else if (obstacleType < 0.92) {
+          // 17% - Fire traps
           const trapX = baseX;
           const trapWidth = 30;
           const wouldOverlapGap = this.gaps.some(
@@ -1266,23 +1249,34 @@ class EndlessRunnerGame {
             this.markDangerousArea(trapX + trapWidth / 2, trapWidth, "fire");
           }
         } else {
-          // 5% - Pendulum
-          this.pendulums.push({
-            x: baseX,
-            y: this.ground - 150,
-            length: 80,
-            angle: 0,
-            maxAngle: Math.PI / 3,
-            speed: 0.05,
-            direction: 1,
-            axeWidth: 20,
-            axeHeight: 20,
+          // 8% - Rope obstacle (rare at low score)
+          // Place rope over a gap (simulate water below)
+          const ropeX = baseX;
+          const ropeWidth = 220 + Math.random() * 120; // 220-340px
+          const ropeY = this.ground - 160;
+          // Add a gap below rope
+          this.gaps.push({
+            x: ropeX,
+            y: this.ground,
+            width: ropeWidth,
+            height: 60,
+            isRopeGap: true
           });
-          this.markDangerousArea(baseX + 10, 20, "pendulum");
+          // Add rope obstacle
+          this.obstacles.push({
+            x: ropeX,
+            y: ropeY,
+            width: ropeWidth,
+            height: 12,
+            type: "rope",
+            poleHeight: 70,
+            id: Date.now() + Math.floor(Math.random()*10000),
+          });
+          this.markDangerousArea(ropeX + ropeWidth / 2, ropeWidth, "rope");
         }
       } else {
-        // Score >= 50: Stone most common, then birds, gaps, fire rarest
-        if (obstacleType < 0.5) {
+        // Score >= 50: Stone most common, then birds, gaps, fire, rope more common
+        if (obstacleType < 0.40) {
           // 50% - Ground obstacles - Most common
           const obstacleX = baseX;
           const obstacleWidth = 35;
@@ -1301,7 +1295,7 @@ class EndlessRunnerGame {
             this.markDangerousArea(obstacleX + obstacleWidth / 2, obstacleWidth, "obstacle");
             this.consecutiveDangers = 0;
           }
-        } else if (obstacleType < 0.68) {
+        } else if (obstacleType < 0.58) {
           // 18% - Flying birds (reduced from 28%)
           this.birds.push({
             x: baseX,
@@ -1314,7 +1308,7 @@ class EndlessRunnerGame {
           });
           this.markDangerousArea(baseX + 20, 40, "bird");
           this.consecutiveDangers = 0;
-        } else if (obstacleType < 0.82) {
+        } else if (obstacleType < 0.76) {
           // 14% - Wider gaps at higher difficulty
           const gapWidth = 220 + Math.random() * 260; // 220–480px wide
           this.gaps.push({
@@ -1324,19 +1318,8 @@ class EndlessRunnerGame {
             height: 60,
           });
           this.markDangerousArea(baseX + gapWidth / 2, gapWidth, "gap");
-        } else if (obstacleType < 0.9) {
-          // 10% - Rope crossing
-          this.ropes.push({
-            x: baseX,
-            y: this.ground - 100,
-            width: 20,
-            height: 100,
-            swingAngle: 0,
-            swingSpeed: 0.05,
-            maxSwing: 0.3,
-          });
-        } else if (obstacleType < 0.95) {
-          // 5% - Fire traps
+        } else if (obstacleType < 0.92) {
+          // 16% - Fire traps
           const trapX = baseX;
           const trapWidth = 30;
           const wouldOverlapGap = this.gaps.some(
@@ -1355,19 +1338,27 @@ class EndlessRunnerGame {
             this.markDangerousArea(trapX + trapWidth / 2, trapWidth, "fire");
           }
         } else {
-          // 5% - Pendulum
-          this.pendulums.push({
-            x: baseX,
-            y: this.ground - 150,
-            length: 80,
-            angle: 0,
-            maxAngle: Math.PI / 3,
-            speed: 0.05,
-            direction: 1,
-            axeWidth: 20,
-            axeHeight: 20,
+          // 8% - Rope obstacle (more common at higher score)
+          const ropeX = baseX;
+          const ropeWidth = 220 + Math.random() * 180; // 220-400px
+          const ropeY = this.ground - 160;
+          this.gaps.push({
+            x: ropeX,
+            y: this.ground,
+            width: ropeWidth,
+            height: 60,
+            isRopeGap: true
           });
-          this.markDangerousArea(baseX + 10, 20, "pendulum");
+          this.obstacles.push({
+            x: ropeX,
+            y: ropeY,
+            width: ropeWidth,
+            height: 12,
+            type: "rope",
+            poleHeight: 70,
+            id: Date.now() + Math.floor(Math.random()*10000),
+          });
+          this.markDangerousArea(ropeX + ropeWidth / 2, ropeWidth, "rope");
         }
       }
 
@@ -1384,10 +1375,10 @@ class EndlessRunnerGame {
   spawnCollectibles() {
     if (this.collectibleTimer <= 0) {
       const rand = Math.random();
-      const baseX = 1200;
+      const baseX = 2000;
 
-      if (rand < 0.6) {
-        // Coin
+      if (rand < 0.5) {
+        // Single Coin
         this.coins.push({
           x: baseX,
           y: this.ground - 60 - Math.random() * 40,
@@ -1396,6 +1387,22 @@ class EndlessRunnerGame {
           frame: 0,
           collected: false,
         });
+      } else if (rand < 0.6) {
+        // Grouped Coins (2-4 coins in a small area)
+        const numCoins = 2 + Math.floor(Math.random() * 3); // 2-4 coins
+        const groupX = baseX;
+        const groupY = this.ground - 60 - Math.random() * 40;
+        
+        for (let i = 0; i < numCoins; i++) {
+          this.coins.push({
+            x: groupX + (Math.random() - 0.5) * 80, // Spread within 80 pixels horizontally
+            y: groupY + (Math.random() - 0.5) * 60, // Spread within 60 pixels vertically
+            width: 16,
+            height: 16,
+            frame: 0,
+            collected: false,
+          });
+        }
       } else if (rand < 0.7) {
         // Shield power-up
         this.powerUps.push({
@@ -1429,17 +1436,6 @@ class EndlessRunnerGame {
           frame: 0,
           collected: false,
         });
-      } else if (rand < 0.9) {
-        // Double jump
-        this.powerUps.push({
-          x: baseX,
-          y: this.ground - 70,
-          width: 36,
-          height: 36,
-          type: "doublejump",
-          frame: 0,
-          collected: false,
-        });
       } else if (rand < 0.95) {
         // Double coins
         this.powerUps.push({
@@ -1448,17 +1444,6 @@ class EndlessRunnerGame {
           width: 36,
           height: 36,
           type: "doublecoins",
-          frame: 0,
-          collected: false,
-        });
-      } else {
-        // Slow motion
-        this.powerUps.push({
-          x: baseX,
-          y: this.ground - 70,
-          width: 36,
-          height: 36,
-          type: "slowmotion",
           frame: 0,
           collected: false,
         });
@@ -1603,11 +1588,8 @@ class EndlessRunnerGame {
     // Update clouds
     this.updateClouds();
 
-    // Update background trees
-    this.backgroundTrees = this.backgroundTrees.filter(tree => {
-      tree.x -= this.gameSpeed * 0.3; // Trees move slower
-      return tree.x + 50 > -100;
-    });
+    // Update trees
+    this.updateTrees();
 
     // Update ground details
     this.updateGroundDetails();
@@ -1686,38 +1668,54 @@ class EndlessRunnerGame {
     this.clouds.forEach((cloud) => {
       cloud.x -= cloud.speed;
       if (cloud.x + cloud.width < 0) {
-        cloud.x = 1200; // Canvas width approximation
+        cloud.x = 2000; // Canvas width approximation
         cloud.y = Math.random() * 200 + 50;
+      }
+    });
+  }
+
+  updateTrees() {
+    this.trees.forEach((tree) => {
+      tree.x -= tree.speed;
+      if (tree.x + tree.width < 0) {
+        tree.x = 2000; // Canvas width approximation
+        tree.y = this.ground - tree.height; // Reset to ground level
       }
     });
   }
 
   spawnBackground() {
     // Spawn clouds
-    if (this.cloudTimer <= 0) {
+    if (this.cloudTimer <= 0 && this.clouds.length < 15) { // Limit to 15 clouds max
+      const radius = 15 + Math.random() * 25;
       this.clouds.push({
-        x: 1200 + Math.random() * 200,
-        y: 50 + Math.random() * 150,
-        radius: 20 + Math.random() * 30,
-        speed: this.gameSpeed * 0.5 + Math.random() * 0.5, // Variable speed based on game speed
-        width: 60 + Math.random() * 40, // Cloud width for wrapping logic
+        x: 2000 + Math.random() * 200,
+        y: 30 + Math.random() * 120,
+        radius: radius,
+        speed: this.gameSpeed * 0.4 + Math.random() * 0.3, // Variable speed based on game speed
+        width: 50 + Math.random() * 30, // Cloud width for wrapping logic
+        height: radius * 0.6, // Cloud height for drawing
       });
-      this.cloudTimer = Math.random() * 200 + 100;
+      this.cloudTimer = Math.random() * 120 + 60; // More frequent spawning
     }
     this.cloudTimer--;
 
-    // Spawn background trees
-    if (this.treeTimer <= 0) {
-      const treeTypes = ['pine', 'oak', 'willow', 'cypress', 'maple'];
-      this.backgroundTrees.push({
-        x: 1200 + Math.random() * 200,
-        y: this.ground - 50 - Math.random() * 20,
-        width: 40 + Math.random() * 30,
-        height: 80 + Math.random() * 60,
-        depth: Math.random(),
-        type: treeTypes[Math.floor(Math.random() * treeTypes.length)]
+    // Spawn trees
+    if (this.treeTimer <= 0 && this.trees.length < 12) { // Limit to 12 trees max
+      const height = 80 + Math.random() * 120;
+      const treeType = Math.floor(Math.random() * 4); // 4 different tree types
+      // Add size variation: small, medium, large
+      const sizeMultiplier = Math.random() < 0.3 ? 0.7 : Math.random() < 0.7 ? 1.0 : 1.4; // 30% small, 40% medium, 30% large
+      this.trees.push({
+        x: 2000 + Math.random() * 300,
+        y: this.ground - height * sizeMultiplier,
+        width: (20 + Math.random() * 30) * sizeMultiplier,
+        height: height * sizeMultiplier,
+        speed: this.gameSpeed * 0.3 + Math.random() * 0.2, // Slower than clouds
+        type: treeType, // Different tree types: 0=Oak, 1=Pine, 2=Birch, 3=Willow
+        sizeMultiplier: sizeMultiplier // Store for drawing functions
       });
-      this.treeTimer = Math.random() * 300 + 200;
+      this.treeTimer = Math.random() * 150 + 100; // Less frequent than clouds
     }
     this.treeTimer--;
   }
@@ -1727,7 +1725,7 @@ class EndlessRunnerGame {
     if (!this.monster) {
       // Spawn monster from the left side (behind the player)
       this.monster = {
-        x: -100, // Spawn further left (increased gap from 0 to -200)
+        x: -300, // Spawn further left for larger initial gap
         y: this.ground - 80,
         width: 150, // Increased from 100 to 150 (50% bigger)
         height: 570, // Increased from 380 to 570 (50% bigger)
@@ -1743,6 +1741,12 @@ class EndlessRunnerGame {
     }
   }
 
+  getMonsterChaseDistance(hitCount) {
+    const baseDistance = 400; // Increased initial gap
+    const distanceReduction = 80; // Larger reduction per hit
+    return Math.max(40, baseDistance - hitCount * distanceReduction);
+  }
+
   updateMonster() {
     if (!this.monster) return;
 
@@ -1753,13 +1757,7 @@ class EndlessRunnerGame {
     // Monster gets progressively closer with each obstacle hit
     // Level 2 monsters are more aggressive - they get closer faster
     let hitCount = this.hitTimestamps ? this.hitTimestamps.length : 0;
-    let baseDistance = 250; // Start with much more distance (increased from 150)
-    let distanceReduction = 50; // Reduce distance by 50 pixels per hit (increased from 40)
-
-    let chaseDistance = Math.max(
-      40,
-      baseDistance - hitCount * distanceReduction
-    ); // Minimum distance increased from 20 to 40
+    let chaseDistance = this.getMonsterChaseDistance(hitCount);
     let isDeadly = hitCount >= 3;
 
     // Calculate ideal position (behind the player)
@@ -1780,8 +1778,8 @@ class EndlessRunnerGame {
     // If within dead zone, don't move horizontally (prevents shaking)
 
     // Keep monster on screen - constrain position
-    if (this.monster.x < 50) {
-      this.monster.x = 50;
+    if (this.monster.x < -400) {
+      this.monster.x = -400;
     }
     if (this.monster.x > 1200 - this.monster.width - 50) {
       this.monster.x = 1200 - this.monster.width - 50;
@@ -1873,95 +1871,6 @@ class EndlessRunnerGame {
     if (this.monster.y > maxY) this.monster.y = maxY;
   }
 
-  checkCollisions() {
-    // Check coin collection
-    for (let i = this.coins.length - 1; i >= 0; i--) {
-      let coin = this.coins[i];
-      if (!coin.collected && this.isColliding(this.player, coin)) {
-        coin.collected = true;
-        const coinValue = 1;
-        const multiplier = this.scoreMultiplier ? 2 : 1;
-        this.score += coinValue * multiplier;
-        this.sessionStats.coinsCollected++;
-        this.createCoinParticles(coin.x + coin.width / 2, coin.y + coin.height / 2);
-        this.coins.splice(i, 1);
-      }
-    }
-
-    // Check power-up collection
-    for (let i = this.powerUps.length - 1; i >= 0; i--) {
-      let powerUp = this.powerUps[i];
-      if (!powerUp.collected && this.isColliding(this.player, powerUp)) {
-        powerUp.collected = true;
-        this.activatePowerUp(powerUp.type);
-        this.sessionStats.powerupsCollected++;
-        this.createPowerUpParticles(powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2);
-        this.powerUps.splice(i, 1);
-      }
-    }
-
-    // Check obstacle collisions
-    if (!this.invulnerable) {
-      // Check regular obstacles
-      for (let obstacle of this.obstacles) {
-        if (this.isColliding(this.player, obstacle)) {
-          this.handleObstacleHit();
-          break;
-        }
-      }
-
-      // Check birds
-      for (let bird of this.birds) {
-        if (this.isColliding(this.player, bird)) {
-          this.handleObstacleHit();
-          break;
-        }
-      }
-
-      // Check fire traps
-      for (let trap of this.fireTraps) {
-        if (trap.active && this.isColliding(this.player, trap)) {
-          this.handleObstacleHit();
-          break;
-        }
-      }
-
-      // Check pendulums
-      for (let pendulum of this.pendulums) {
-        const axeRect = {
-          x: pendulum.x + pendulum.length * Math.sin(pendulum.angle),
-          y: pendulum.y - pendulum.length * Math.cos(pendulum.angle),
-          width: pendulum.axeWidth,
-          height: pendulum.axeHeight
-        };
-        if (this.isColliding(this.player, axeRect)) {
-          this.handleObstacleHit();
-          break;
-        }
-      }
-    }
-
-    // Check rope collisions
-    for (let rope of this.ropes) {
-      if (!this.player.onRope && this.isColliding(this.player, rope)) {
-        this.player.onRope = true;
-        this.player.ropeCrossing = rope;
-        this.player.jumping = false;
-        this.player.velocityY = 0;
-        this.player.ropeSwing = 0;
-      }
-    }
-
-    // Check gap collisions (falling)
-    for (let gap of this.gaps) {
-      if (this.player.x + this.player.width > gap.x && this.player.x < gap.x + gap.width &&
-          this.player.y + this.player.height >= this.ground) {
-        this.gameState = 'gameOver';
-        this.sessionStats.gameResult = 'fell';
-        break;
-      }
-    }
-  }
 
   isColliding(rect1, rect2) {
     return (
@@ -2061,7 +1970,7 @@ class EndlessRunnerGame {
       fireTraps: this.fireTraps,
       monster: this.monster,
       clouds: this.clouds,
-      backgroundTrees: this.backgroundTrees,
+      trees: this.trees,
       grassBlades: this.grassBlades,
       dirtParticles: this.dirtParticles,
       fallenLeaves: this.fallenLeaves,
@@ -2069,20 +1978,14 @@ class EndlessRunnerGame {
       groundNoise: this.groundNoise,
       particles: this.particles,
       isNightMode: this.isNightMode,
-      pendulums: this.pendulums,
-      ropes: this.ropes,
       invulnerable: this.invulnerable,
       invulnerableTimer: this.invulnerableTimer,
       magnetCoins: this.magnetCoins,
       magnetTimer: this.magnetTimer,
       speedBoost: this.speedBoost,
       speedBoostTimer: this.speedBoostTimer,
-      doubleJumpBoost: this.doubleJumpBoost,
-      doubleJumpBoostTimer: this.doubleJumpBoostTimer,
       scoreMultiplier: this.scoreMultiplier,
       scoreMultiplierTimer: this.scoreMultiplierTimer,
-      slowMotion: this.slowMotion,
-      slowMotionTimer: this.slowMotionTimer,
       hitTimestamps: this.hitTimestamps,
       slowdownTimer: this.slowdownTimer,
       hitFlash: this.hitFlash,
