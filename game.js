@@ -8,6 +8,149 @@ canvas.height = window.innerHeight;
 
 // Client-side game state and methods
 class ClientGame {
+      updateGroundDetails(gameSpeed) {
+        // Move ground details left to create running effect
+        // Grass blades
+        for (let blade of this.grassBlades) {
+          blade.x -= gameSpeed;
+          if (blade.x < -10) {
+            blade.x = this.canvas.width + Math.random() * 50;
+          }
+        }
+        // Dirt particles
+        for (let particle of this.dirtParticles) {
+          particle.x -= gameSpeed;
+          if (particle.x < -10) {
+            particle.x = this.canvas.width + Math.random() * 100;
+          }
+        }
+        // Fallen leaves
+        for (let leaf of this.fallenLeaves) {
+          leaf.x -= gameSpeed;
+          if (leaf.x < -20) {
+            leaf.x = this.canvas.width + Math.random() * 150;
+          }
+        }
+        // Moss patches
+        for (let moss of this.mossPatches) {
+          moss.x -= gameSpeed;
+          if (moss.x < -50) {
+            moss.x = this.canvas.width + Math.random() * 200;
+          }
+        }
+        // Ground noise
+        for (let noise of this.groundNoise) {
+          noise.x -= gameSpeed;
+          if (noise.x < -5) {
+            noise.x = this.canvas.width + Math.random() * 50;
+          }
+        }
+      }
+    initializeGroundDetails() {
+      // Arrays for ground details
+      this.grassBlades = [];
+      this.dirtParticles = [];
+      this.fallenLeaves = [];
+      this.mossPatches = [];
+      this.groundNoise = [];
+      this.leafColors = ['#8B4513', '#A0522D', '#CD853F', '#D2691E'];
+
+      // Grass blades (closer to ground)
+      for (let i = 0; i < 50; i++) {
+        this.grassBlades.push({
+          x: Math.random() * this.canvas.width,
+          y: this.canvas.height - 40 - Math.random() * 8,
+          height: 8 + Math.random() * 12,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+      // Dirt particles (closer to ground)
+      for (let i = 0; i < 30; i++) {
+        const seed = Math.random() * 1000;
+        this.dirtParticles.push({
+          x: Math.random() * this.canvas.width,
+          y: this.canvas.height - 30 + (seed % 10),
+          size: 1 + (seed % 3)
+        });
+      }
+      // Fallen leaves (closer to ground)
+      for (let i = 0; i < 20; i++) {
+        const seed = Math.random() * 1000;
+        this.fallenLeaves.push({
+          x: Math.random() * this.canvas.width,
+          y: this.canvas.height - 25 + (seed % 10),
+          size: 3 + (seed % 4),
+          rotation: (seed % (Math.PI * 2)),
+          color: this.leafColors[Math.floor(seed % this.leafColors.length)]
+        });
+      }
+      // Moss patches (closer to ground)
+      // for (let i = 0; i < 15; i++) {
+      //   const seed = Math.random() * 1000;
+      //   this.mossPatches.push({
+      //     x: Math.random() * this.canvas.width,
+      //     y: this.canvas.height - 20 + (seed % 10),
+      //     width: 20 + (seed % 40),
+      //     height: 8 + (seed % 15),
+      //     rotation: (seed % Math.PI)
+      //   });
+      // }
+      // Ground noise (closer to ground)
+      for (let i = 0; i < 100; i++) {
+        const seed = Math.random() * 1000;
+        this.groundNoise.push({
+          x: Math.random() * this.canvas.width,
+          y: this.canvas.height - 40 + (seed % 20),
+          size: 0.5 + (seed % 1.5)
+        });
+      }
+    }
+    drawGroundDetails(state) {
+      // Grass blades
+      this.ctx.save();
+      this.ctx.strokeStyle = '#228B22';
+      this.grassBlades.forEach(blade => {
+        this.ctx.beginPath();
+        this.ctx.moveTo(blade.x, blade.y);
+        this.ctx.lineTo(blade.x, blade.y - blade.height);
+        this.ctx.stroke();
+      });
+      // Dirt particles
+      this.ctx.fillStyle = '#8B5A2B';
+      this.dirtParticles.forEach(p => {
+        this.ctx.beginPath();
+        this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        this.ctx.fill();
+      });
+      // Fallen leaves
+      this.fallenLeaves.forEach(leaf => {
+        this.ctx.save();
+        this.ctx.translate(leaf.x, leaf.y);
+        this.ctx.rotate(leaf.rotation);
+        this.ctx.fillStyle = leaf.color;
+        this.ctx.beginPath();
+        this.ctx.ellipse(0, 0, leaf.size, leaf.size / 2, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.restore();
+      });
+      // Moss patches
+      this.ctx.fillStyle = '#556B2F';
+      this.mossPatches.forEach(moss => {
+        this.ctx.save();
+        this.ctx.translate(moss.x, moss.y);
+        this.ctx.rotate(moss.rotation);
+        this.ctx.fillRect(-moss.width / 2, -moss.height / 2, moss.width, moss.height);
+        this.ctx.restore();
+      });
+      // Ground noise
+      this.ctx.fillStyle = '#3E2723';
+      this.groundNoise.forEach(noise => {
+        this.ctx.beginPath();
+        this.ctx.arc(noise.x, noise.y, noise.size, 0, Math.PI * 2);
+        this.ctx.fill();
+      });
+      this.ctx.restore();
+    }
   resetGameState() {
     // Reset all relevant game state variables
     this.score = 0;
@@ -45,6 +188,9 @@ class ClientGame {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
     this.isNightMode = false;
+
+    // Initialize ground details
+    this.initializeGroundDetails();
 
     // Audio properties
     this.audioContext = null;
@@ -750,6 +896,7 @@ class ClientGame {
 
 // Create client game instance
 const clientGame = new ClientGame();
+window.clientGame = clientGame;
 clientGame.initAudio();
 
 let gameState = null;
@@ -1531,7 +1678,13 @@ function drawGround(state) {
   ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
 
   // Add realistic ground details
-  // drawGroundDetails(state); // Removed for minimal ground
+  if (window.clientGame && typeof window.clientGame.drawGroundDetails === 'function') {
+    // Animate ground details to move left with the running effect
+    if (typeof window.clientGame.updateGroundDetails === 'function') {
+      window.clientGame.updateGroundDetails(state.gameSpeed || 7);
+    }
+    window.clientGame.drawGroundDetails(state);
+  }
 }
 
 function drawObstacles(state) {

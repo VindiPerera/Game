@@ -666,11 +666,9 @@ class EndlessRunnerGame {
       if (this.isColliding(this.player, obstacle)) {
         if (this.invulnerable && this.shieldHits > 0) {
           // Shield active - consume it on hit
-          this.shieldHits--;
-          if (this.shieldHits <= 0) {
-            this.invulnerable = false;
-            this.invulnerableTimer = 0;
-          }
+          this.shieldHits = 0; // Omit shield immediately
+          this.invulnerable = false;
+          this.invulnerableTimer = 0;
           // Show shield break effect
           this.showShieldBreakEffect();
         } else if (!this.invulnerable) {
@@ -685,11 +683,9 @@ class EndlessRunnerGame {
       if (this.isColliding(this.player, bird)) {
         if (this.invulnerable && this.shieldHits > 0) {
           // Shield active - consume it on hit
-          this.shieldHits--;
-          if (this.shieldHits <= 0) {
-            this.invulnerable = false;
-            this.invulnerableTimer = 0;
-          }
+          this.shieldHits = 0; // Omit shield immediately
+          this.invulnerable = false;
+          this.invulnerableTimer = 0;
           // Show shield break effect
           this.showShieldBreakEffect();
         } else if (!this.invulnerable) {
@@ -701,14 +697,12 @@ class EndlessRunnerGame {
 
     // Check fire traps
     for (let trap of this.fireTraps) {
-      if (trap.active && this.isColliding(this.player, trap)) {
+      if (this.isColliding(this.player, trap)) {
         if (this.invulnerable && this.shieldHits > 0) {
           // Shield active - consume it on hit
-          this.shieldHits--;
-          if (this.shieldHits <= 0) {
-            this.invulnerable = false;
-            this.invulnerableTimer = 0;
-          }
+          this.shieldHits = 0; // Omit shield immediately
+          this.invulnerable = false;
+          this.invulnerableTimer = 0;
           // Show shield break effect
           this.showShieldBreakEffect();
         } else if (!this.invulnerable) {
@@ -1725,71 +1719,6 @@ class EndlessRunnerGame {
     if (this.monster.y > maxY) this.monster.y = maxY;
   }
 
-  checkCollisions() {
-    // Check coin collection
-    for (let i = this.coins.length - 1; i >= 0; i--) {
-      let coin = this.coins[i];
-      if (!coin.collected && this.isColliding(this.player, coin)) {
-        coin.collected = true;
-        const coinValue = 1;
-        const multiplier = this.scoreMultiplier ? 2 : 1;
-        this.score += coinValue * multiplier;
-        this.sessionStats.coinsCollected++;
-        this.createCoinParticles(coin.x + coin.width / 2, coin.y + coin.height / 2);
-        this.coins.splice(i, 1);
-      }
-    }
-
-    // Check power-up collection
-    for (let i = this.powerUps.length - 1; i >= 0; i--) {
-      let powerUp = this.powerUps[i];
-      if (!powerUp.collected && this.isColliding(this.player, powerUp)) {
-        powerUp.collected = true;
-        this.activatePowerUp(powerUp.type);
-        this.sessionStats.powerupsCollected++;
-        this.createPowerUpParticles(powerUp.x + powerUp.width / 2, powerUp.y + powerUp.height / 2);
-        this.powerUps.splice(i, 1);
-      }
-    }
-
-    // Check obstacle collisions
-    if (!this.invulnerable) {
-      // Check regular obstacles
-      for (let obstacle of this.obstacles) {
-        if (this.isColliding(this.player, obstacle)) {
-          this.handleObstacleHit();
-          break;
-        }
-      }
-
-      // Check birds
-      for (let bird of this.birds) {
-        if (this.isColliding(this.player, bird)) {
-          this.handleObstacleHit();
-          break;
-        }
-      }
-
-      // Check fire traps
-      for (let trap of this.fireTraps) {
-        if (trap.active && this.isColliding(this.player, trap)) {
-          this.handleObstacleHit();
-          break;
-        }
-      }
-
-
-      // Check gap collisions (falling)
-      for (let gap of this.gaps) {
-        if (this.player.x + this.player.width > gap.x && this.player.x < gap.x + gap.width &&
-            this.player.y + this.player.height >= this.ground) {
-          this.gameState = 'gameOver';
-          this.sessionStats.gameResult = 'fell';
-          break;
-        }
-      }
-    }
-  }
 
   isColliding(rect1, rect2) {
     return (
